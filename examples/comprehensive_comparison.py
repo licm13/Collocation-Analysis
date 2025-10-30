@@ -597,7 +597,7 @@ def plot_scenario_comparison(scenario, results, save_path=None):
         ax3.set_xticks(x_pos)
         ax3.set_xticklabels(method_labels_r, rotation=45, ha='right', fontsize=5)
         ax3.set_ylabel(r'$\rho^2$ (Data-truth correlation)')
-        ax3.set_ylim([0, 1])
+        ax3.set_ylim([0, 1]) # type: ignore
         ax3.set_title('c) Data-truth correlations', fontweight='bold', loc='left')
         ax3.grid(True, alpha=0.3, axis='y')
 
