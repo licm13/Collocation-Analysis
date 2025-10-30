@@ -4,6 +4,9 @@ Test Suite for Collocation Analysis Package
 
 Comprehensive tests for all collocation methods and utilities.
 """
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pytest
@@ -117,10 +120,10 @@ class TestIVS:
         X = np.random.randn(100, 2)
 
         with pytest.raises(ValueError):
-            ivs(X, N_boot=100, column=3, M_A=0)  # Invalid column
+            ivs(X, N_boot=100, column=3, M_A=0)  # type: ignore # Invalid column
 
         with pytest.raises(ValueError):
-            ivs(X, N_boot=100, column=1, M_A=2)  # Invalid M_A
+            ivs(X, N_boot=100, column=1, M_A=2)  # type: ignore # Invalid M_A
 
 
 class TestTC:

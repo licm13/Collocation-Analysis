@@ -1,4 +1,9 @@
 """Quick test to verify all methods work."""
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
 import numpy as np
 from collocation import ivd, ivs, tc, eivd, ec
 

@@ -5,6 +5,9 @@ Comprehensive Example: All Collocation Methods
 This example demonstrates all collocation analysis methods available
 in the package using synthetic data with known error characteristics.
 """
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -291,8 +294,10 @@ def plot_results(data, merged_ivd, merged_ec):
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('/home/user/Collocation-Analysis/examples/collocation_results.png', dpi=150)
-    print("Plot saved as 'collocation_results.png'")
+    # save to the same directory as this script (works on Windows)
+    out_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'collocation_results.png')
+    plt.savefig(out_file, dpi=150)
+    print(f"Plot saved as '{out_file}'")
 
 
 def main():
