@@ -30,6 +30,17 @@ Collocation analysis methods enable quantification of errors in multiple dataset
   - Non-constant calibration parameters
   - Requires PyMC3 (optional dependency)
 
+#### Application: Ecosystem Limitation Index (ELI)
+
+- **NEW**: Complete Python implementation of ELI calculation framework
+  - Converted from MATLAB code for ecosystem water/energy limitation analysis
+  - Processes multiple climate data sources (ERA5-Land, GLEAM, GLDAS)
+  - Applies all collocation methods (IVD, EIVD, TC, Bayesian TC)
+  - Based on: "Widespread shift from ecosystem energy to water limitation with climate change"
+  - Variables: soil moisture, evapotranspiration, transpiration, radiation
+  - See [ELI_README.md](ELI_README.md) for detailed documentation
+  - Example: `examples/eli_comprehensive_example.py`
+
 ### Key Capabilities
 
 - Error variance estimation without ground truth
@@ -204,6 +215,54 @@ Output:
 - Overall performance comparison
 - Detailed results table
 
+## ELI Application
+
+The Ecosystem Limitation Index (ELI) application provides a complete workflow for analyzing water vs. energy limitation in terrestrial ecosystems.
+
+### Quick Start
+
+```python
+from collocation import ELIProcessor
+
+# Initialize processor
+processor = ELIProcessor()
+
+# Process three data sources with EIVD
+results = processor.process_triple_eivd(
+    era5l_data,  # ERA5-Land reanalysis
+    gleam_data,  # GLEAM evapotranspiration
+    gldas_data,  # GLDAS land surface model
+    variable='eta'
+)
+
+# Save results
+processor.save_to_netcdf(
+    results,
+    'eli_eta_results.nc',
+    variable='eta',
+    data_source='ERA5L+GLEAM+GLDAS'
+)
+```
+
+### Complete Examples
+
+```bash
+# Quick test (validates installation)
+python examples/test_eli_quick.py
+
+# Comprehensive example (all methods)
+python examples/eli_comprehensive_example.py
+```
+
+### Documentation
+
+See [ELI_README.md](ELI_README.md) for:
+- Complete API documentation
+- Data format specifications
+- Method selection guide
+- NetCDF I/O examples
+- Performance optimization tips
+
 ## Testing
 
 Run the test suite:
@@ -216,6 +275,12 @@ Run tests with coverage:
 
 ```bash
 pytest tests/test_collocation.py --cov=collocation --cov-report=html
+```
+
+Test ELI module:
+
+```bash
+python examples/test_eli_quick.py
 ```
 
 ## API Documentation
