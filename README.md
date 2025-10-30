@@ -13,11 +13,22 @@ Collocation analysis methods enable quantification of errors in multiple dataset
 
 ### Implemented Methods
 
+#### Classical Methods
+
 - **IVD** (Information Vector Dual): 2-way collocation with temporal offset optimization
 - **IVS** (Information Vector with Scaling): 2-way collocation with bootstrap uncertainty estimation
 - **TC** (Triple Collocation): Classic 3-way collocation assuming independent errors
 - **EIVD** (Extended IVD): 3-way collocation allowing error cross-correlation
 - **EC** (Extended Collocation): 4-way quadruple collocation with optimal merging weights
+
+#### Bayesian Methods
+
+- **BTC** (Bayesian Triple Collocation): 3-way collocation with full Bayesian inference
+  - Time-varying error structures
+  - Complex heteroscedastic models
+  - Full uncertainty quantification via MCMC
+  - Non-constant calibration parameters
+  - Requires PyMC3 (optional dependency)
 
 ### Key Capabilities
 
@@ -41,11 +52,21 @@ pip install -e .
 
 ### Dependencies
 
+#### Core Dependencies
 - Python >= 3.7
 - NumPy >= 1.18.0
 - SciPy >= 1.4.0
 - Matplotlib >= 3.1.0 (for examples)
 - pytest >= 6.0.0 (for testing)
+
+#### Optional Dependencies (for Bayesian methods)
+- PyMC3 >= 3.11.0 (for Bayesian Triple Collocation)
+- Theano >= 1.0.0 (backend for PyMC3)
+
+Install with Bayesian support:
+```bash
+pip install -e . "pymc3>=3.11.0" "theano-pymc"
+```
 
 ## Quick Start
 
@@ -105,19 +126,47 @@ best = select_best_combination(results, criterion='min_fMSE')
 merged = best.weighted_result[0]
 ```
 
+### Bayesian Triple Collocation (Advanced)
+
+```python
+from collocation import BayesianTC, BAYESIAN_AVAILABLE
+
+if BAYESIAN_AVAILABLE:
+    # Three products (n_products, n_samples)
+    data = np.array([product1, product2, product3])
+
+    # Initialize and run Bayesian TC
+    btc = BayesianTC(data)
+    btc.run_inference(niter=2000, nadvi=200000)
+
+    # Get results with full uncertainty quantification
+    rmse_mean, rmse_std, rmse_quantiles = btc.get_error_estimates()
+
+    # Get calibration parameters
+    m_mean, l_mean = btc.get_calibration_parameters()
+
+    # Print summary
+    btc.summary()
+else:
+    print("Install PyMC3 for Bayesian methods: pip install pymc3==3.11.5 theano-pymc")
+```
+
 ## Method Comparison
 
-| Method | # Products | Error Correlation | Temporal Info | Best For |
-|--------|-----------|-------------------|---------------|----------|
-| **IVD** | 2 | No | Offset-based | Fusing two products with optimal weights |
-| **IVS** | 2 | No | Lag-1 + Bootstrap | Uncertainty quantification |
-| **TC** | 3 | Zero (assumed) | No | Standard 3-way validation |
-| **EIVD** | 3 | Yes (estimated) | Lag-1 | Products with correlated errors |
-| **EC** | 4 | Yes (estimated) | No | Multi-sensor fusion |
+| Method | # Products | Error Correlation | Temporal Info | Uncertainty | Best For |
+|--------|-----------|-------------------|---------------|-------------|----------|
+| **IVD** | 2 | No | Offset-based | No | Fusing two products with optimal weights |
+| **IVS** | 2 | No | Lag-1 + Bootstrap | Bootstrap | Uncertainty quantification (2-way) |
+| **TC** | 3 | Zero (assumed) | No | No | Standard 3-way validation |
+| **EIVD** | 3 | Yes (estimated) | Lag-1 | No | Products with correlated errors |
+| **EC** | 4 | Yes (estimated) | No | No | Multi-sensor fusion |
+| **BTC** | 3+ | Yes (estimated) | Time-varying | Full Bayesian | Complex error structures, time-varying |
 
 ## Comprehensive Examples
 
-Run the complete example demonstrating all methods:
+### Example 1: All Classical Methods
+
+Run the complete example demonstrating all classical methods:
 
 ```bash
 cd examples
@@ -126,9 +175,34 @@ python example_all_methods.py
 
 This will:
 1. Generate synthetic data with known errors
-2. Apply all collocation methods
+2. Apply all classical collocation methods (IVD, IVS, TC, EIVD, EC)
 3. Compare results with ground truth
 4. Create visualization plots
+
+### Example 2: Comprehensive Comparison (Publication-Quality)
+
+Run the comprehensive comparison across multiple scenarios with Nature/Science quality figures:
+
+```bash
+cd examples
+python comprehensive_comparison.py
+```
+
+This advanced example includes:
+- **6 realistic scenarios**: Ideal, correlated errors, time-varying, biased, heavy-tailed, realistic
+- **All methods compared**: IVD, IVS, TC, EIVD, EC, BTC
+- **Publication-quality figures**: Following Nature/Science journal standards
+  - 300 DPI resolution
+  - Colorblind-friendly palette
+  - Proper font sizing (Arial/Helvetica, 7-9pt)
+  - Single column (89mm) and double column (183mm) layouts
+- **Comprehensive metrics**: RMSE, correlation, relative errors, distributions
+- **Statistical comparison**: Performance across different challenging conditions
+
+Output:
+- Individual scenario comparison figures
+- Overall performance comparison
+- Detailed results table
 
 ## Testing
 
@@ -245,6 +319,57 @@ Each result contains:
 
 **Reference:**
 > Gruber, A., et al. (2016). Estimating error cross-correlations in soil moisture data sets using extended collocation analysis. JGR: Atmospheres, 121(3), 1208-1219.
+
+### BTC (Bayesian Triple Collocation)
+
+```python
+from collocation import BayesianTC
+
+# Initialize with data
+btc = BayesianTC(data)  # data shape: (n_products, n_samples)
+
+# Run inference
+btc.run_inference(niter=2000, nadvi=200000, seed=123)
+
+# Get results
+rmse_mean, rmse_std, rmse_quantiles = btc.get_error_estimates()
+m_mean, l_mean = btc.get_calibration_parameters()
+```
+
+**Parameters:**
+- `data`: Input data (n_products, n_samples) - Three or more products
+- `niter`: MCMC iterations (default: 2000)
+- `nadvi`: ADVI iterations for initialization (default: 200000)
+- `seed`: Random seed
+
+**Returns:**
+- `rmse_mean`: Posterior mean of RMSE for each product
+- `rmse_std`: Posterior standard deviation of RMSE
+- `rmse_quantiles`: 2.5%, 50%, 97.5% quantiles (credible intervals)
+- `m_mean`: Additive bias estimates
+- `l_mean`: Multiplicative bias estimates
+
+**Advanced Options:**
+```python
+# Custom inference parameters
+btc.setup_model(
+    doft=4,                    # Degrees of freedom for priors
+    priorfactor=1.0,           # Prior scaling
+    thetaoffset=0.15,          # Offset for multiplicative bias
+    thetamodel='beta',         # 'beta' or 'logistic'
+    studenterrors=False        # Use Student-t errors
+)
+```
+
+**Key Features:**
+- Full Bayesian uncertainty quantification via MCMC
+- Time-varying error variance estimation
+- Non-constant calibration parameters
+- Handles complex heteroscedastic structures
+- Can incorporate explanatory variables for time-varying parameters
+
+**Reference:**
+> Zwieback, S., et al. (2012). Structural and statistical properties of the collocation technique for error characterization. Nonlin. Processes Geophys., 19, 69-80.
 
 ## Performance Metrics
 
