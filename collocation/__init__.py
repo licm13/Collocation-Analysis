@@ -28,6 +28,9 @@ from .eivd import eivd
 from .ec import ec
 from .utils import mse_judge, kge_objfun
 
+# ELI (Ecosystem Limitation Index) module
+from .eli import ELIProcessor, calculate_eli_index, process_eli_data
+
 # Bayesian methods (optional, requires PyMC3)
 try:
     from .bayesian_tc import BayesianTC, bayesian_tc, simulate_products
@@ -38,16 +41,23 @@ except ImportError:
     bayesian_tc = None
     simulate_products = None
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 __all__ = [
+    # Classical methods
     'ivd',
     'ivs',
     'tc',
     'eivd',
     'ec',
+    # ELI application
+    'ELIProcessor',
+    'calculate_eli_index',
+    'process_eli_data',
+    # Utilities
     'mse_judge',
     'kge_objfun',
+    # Bayesian methods
     'BayesianTC',
     'bayesian_tc',
     'simulate_products',
