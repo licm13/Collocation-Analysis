@@ -11,6 +11,7 @@ Classical Methods:
 - IVD: Information Vector Dual (2-way collocation)
 - IVS: Information Vector with Scaling (2-way with bootstrap)
 - TC: Triple Collocation (3-way, assumes zero error cross-correlation)
+- TCH: Three-Cornered Hat (Classic, mathematically equivalent to TC)
 - EIVD: Extended Information Vector Dual (3-way, allows error cross-correlation)
 - EC: Extended Collocation (4-way quadruple collocation)
 
@@ -18,7 +19,8 @@ Simple Methods:
 - SimpleAverage: Simple and weighted averaging for quick data fusion
 
 Bayesian Methods:
-- BTC: Bayesian Triple Collocation (3-way, time-varying errors, full uncertainty quantification)
+- BTC: Bayesian Triple Collocation (3-way, time-varying errors, full uncertainty)
+- BTCH: Bayesian Three-Cornered Hat (3-way, constant errors, full uncertainty)
 
 Author: Converted from MATLAB by Claude
 Original MATLAB code: licm_13@163.com
@@ -30,6 +32,9 @@ from .tc import tc
 from .eivd import eivd
 from .ec import ec
 from .utils import mse_judge, kge_objfun
+
+# Alias tc as tch (classic Three-Cornered Hat is mathematically TC)
+from .tc import tc as tch
 
 # Simple averaging methods
 from .simple_average import (
@@ -52,13 +57,29 @@ except ImportError:
     bayesian_tc = None
     simulate_products = None
 
-__version__ = '1.2.0'
+# New Bayesian TCH (optional, requires PyMC3)
+try:
+    # This check ensures we don't fail if pymc3 wasn't imported
+    # in bayesian_tch.py itself
+    from .bayesian_tch import BayesianTCH, PYMC3_AVAILABLE as BTCH_PYMC3_OK
+    if BTCH_PYMC3_OK:
+        BAYESIAN_TCH_AVAILABLE = True
+    else:
+        BAYESIAN_TCH_AVAILABLE = False
+        BayesianTCH = None
+except ImportError:
+    BAYESIAN_TCH_AVAILABLE = False
+    BayesianTCH = None
+
+
+__version__ = '1.3.0' # Incremented version
 
 __all__ = [
     # Classical methods
     'ivd',
     'ivs',
     'tc',
+    'tch', # Added TCH alias
     'eivd',
     'ec',
     # Simple methods
@@ -78,4 +99,6 @@ __all__ = [
     'bayesian_tc',
     'simulate_products',
     'BAYESIAN_AVAILABLE',
+    'BayesianTCH', # Added BTCH
+    'BAYESIAN_TCH_AVAILABLE', # Added BTCH flag
 ]
