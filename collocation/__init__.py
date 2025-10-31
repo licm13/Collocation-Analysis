@@ -14,6 +14,9 @@ Classical Methods:
 - EIVD: Extended Information Vector Dual (3-way, allows error cross-correlation)
 - EC: Extended Collocation (4-way quadruple collocation)
 
+Simple Methods:
+- SimpleAverage: Simple and weighted averaging for quick data fusion
+
 Bayesian Methods:
 - BTC: Bayesian Triple Collocation (3-way, time-varying errors, full uncertainty quantification)
 
@@ -27,6 +30,14 @@ from .tc import tc
 from .eivd import eivd
 from .ec import ec
 from .utils import mse_judge, kge_objfun
+
+# Simple averaging methods
+from .simple_average import (
+    simple_average,
+    inverse_variance_weights,
+    calculate_averaging_uncertainty,
+    ensemble_statistics
+)
 
 # ELI (Ecosystem Limitation Index) module
 from .eli import ELIProcessor, calculate_eli_index, process_eli_data
@@ -50,6 +61,11 @@ __all__ = [
     'tc',
     'eivd',
     'ec',
+    # Simple methods
+    'simple_average',
+    'inverse_variance_weights',
+    'calculate_averaging_uncertainty',
+    'ensemble_statistics',
     # ELI application
     'ELIProcessor',
     'calculate_eli_index',
