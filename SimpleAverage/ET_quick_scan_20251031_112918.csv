@@ -1,0 +1,41 @@
+﻿数据集名称,NC文件数量,子文件夹数量,总大小(GB),最新修改日期,文件路径,推测类型
+BESSv2.0,0,10,0.00,N/A,Z:\Evaporation_Flux\BESSv2.0,BESS
+CAMELE,0,11,0.00,N/A,Z:\Evaporation_Flux\CAMELE,CAMELE
+CAMELE_V2,0,5,0.00,N/A,Z:\Evaporation_Flux\CAMELE_V2,CAMELE
+China_PET_1km_1901_2024,0,1,0.00,N/A,Z:\Evaporation_Flux\China_PET_1km_1901_2024,PET数据 / PET
+ChinaGrassFluxUpscale_ET,0,2,0.00,N/A,Z:\Evaporation_Flux\ChinaGrassFluxUpscale_ET,通量数据 / 总ET
+E_pan,0,0,0.00,N/A,Z:\Evaporation_Flux\E_pan,未识别
+ERA5_DEDI,44,0,21.42,2023-12-23 09:01,Z:\Evaporation_Flux\ERA5_DEDI,ERA5再分析
+ERA5L,0,76,0.00,N/A,Z:\Evaporation_Flux\ERA5L,ERA5再分析
+ET-SIF-2003-2018-RSE-Zhang2024,0,16,0.00,N/A,Z:\Evaporation_Flux\ET-SIF-2003-2018-RSE-Zhang2024,总ET
+ET-TP,0,2,0.00,N/A,Z:\Evaporation_Flux\ET-TP,总ET
+ET_global_daily_mPM,0,0,0.00,N/A,Z:\Evaporation_Flux\ET_global_daily_mPM,总ET
+ET_WB,1,0,0.45,2023-10-30 16:24,Z:\Evaporation_Flux\ET_WB,总ET
+ET_WB_MaNing,0,0,0.00,N/A,Z:\Evaporation_Flux\ET_WB_MaNing,总ET
+ETMonitor,0,2,0.00,N/A,Z:\Evaporation_Flux\ETMonitor,总ET
+flux_CONUS,0,3,0.00,N/A,Z:\Evaporation_Flux\flux_CONUS,通量数据
+flux_ET_dataset,0,1,0.00,N/A,Z:\Evaporation_Flux\flux_ET_dataset,通量数据 / 总ET
+FLUXCOM.original,0,3,0.00,N/A,Z:\Evaporation_Flux\FLUXCOM.original,FLUXCOM / 通量数据
+FLUXCOM.RS.01D.8D.ET,5486,0,44.31,2022-10-14 18:16,Z:\Evaporation_Flux\FLUXCOM.RS.01D.8D.ET,FLUXCOM / 通量数据 / 总ET
+GLASS,0,2,0.00,N/A,Z:\Evaporation_Flux\GLASS,GLASS
+GLDAS2,0,8,0.00,N/A,Z:\Evaporation_Flux\GLDAS2,GLDAS
+GLEAM,0,3,0.00,N/A,Z:\Evaporation_Flux\GLEAM,GLEAM
+HG-Land_ET,1,0,1.71,2023-12-22 14:45,Z:\Evaporation_Flux\HG-Land_ET,总ET
+JiangpengCui_T_China,0,0,0.00,N/A,Z:\Evaporation_Flux\JiangpengCui_T_China,未识别
+Lake Evap-Zhao gang,0,0,0.00,N/A,Z:\Evaporation_Flux\Lake Evap-Zhao gang,未识别
+MODIS,0,5,0.00,N/A,Z:\Evaporation_Flux\MODIS,MODIS
+NCP_ET,0,0,0.00,N/A,Z:\Evaporation_Flux\NCP_ET,总ET
+Niuzhongen-ET partition data China,0,3,0.00,N/A,Z:\Evaporation_Flux\Niuzhongen-ET partition data China,总ET
+P-LSH,32,0,15.57,2023-11-25 20:17,Z:\Evaporation_Flux\P-LSH,未识别
+P-LSHv2,0,3,0.00,N/A,Z:\Evaporation_Flux\P-LSHv2,未识别
+PET-CMIP6,0,0,0.00,N/A,Z:\Evaporation_Flux\PET-CMIP6,PET数据 / PET
+PEW-ET,0,0,0.00,N/A,Z:\Evaporation_Flux\PEW-ET,总ET
+PML-AVHRR,0,2,0.00,N/A,Z:\Evaporation_Flux\PML-AVHRR,未识别
+PMLV2,0,2,0.00,N/A,Z:\Evaporation_Flux\PMLV2,未识别
+REA,78,1,12.48,2023-10-31 10:23,Z:\Evaporation_Flux\REA,未识别
+SiTHv2,18,0,8.67,2024-05-07 09:08,Z:\Evaporation_Flux\SiTHv2,未识别
+SSEBop,0,4,0.00,N/A,Z:\Evaporation_Flux\SSEBop,未识别
+SW_PET,34,0,118.10,2023-10-30 20:37,Z:\Evaporation_Flux\SW_PET,PET数据 / PET
+Synthesis_ET,0,0,0.00,N/A,Z:\Evaporation_Flux\Synthesis_ET,集成产品 / 总ET
+WaterGAP2.2d-PET,32,0,10.35,2023-10-28 21:56,Z:\Evaporation_Flux\WaterGAP2.2d-PET,PET数据 / PET
+XBase,0,5,0.00,N/A,Z:\Evaporation_Flux\XBase,未识别
