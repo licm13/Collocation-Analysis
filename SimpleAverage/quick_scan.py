@@ -125,14 +125,14 @@ def main():
     # 设置数据路径
     data_path = r"Z:\Evaporation_Flux"
     
-    # 获取脚本所在目录
-    script_dir = Path(__file__).parent.absolute()
+    # 输出目录改为数据目录
+    output_dir = Path(data_path)
     
     print("=" * 80)
     print("ET产品数据集快速扫描工具")
     print("=" * 80)
     print(f"\n扫描路径: {data_path}")
-    print(f"输出路径: {script_dir}\n")
+    print(f"输出路径: {output_dir}\n")
     
     # 检查路径
     if not os.path.exists(data_path):
@@ -156,14 +156,14 @@ def main():
     
     # 保存结果到脚本所在目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = script_dir / f"ET_quick_scan_{timestamp}.csv"
+    output_file = output_dir / f"ET_quick_scan_{timestamp}.csv"
     
     df.to_csv(output_file, index=False, encoding='utf-8-sig')
     print(f"✓ 扫描报告已保存至: {output_file}")
     
     # 尝试保存Excel
     try:
-        excel_file = script_dir / f"ET_quick_scan_{timestamp}.xlsx"
+        excel_file = output_dir / f"ET_quick_scan_{timestamp}.xlsx"
         df.to_excel(excel_file, index=False, engine='openpyxl')
         print(f"✓ Excel报告已保存至: {excel_file}")
     except ImportError:

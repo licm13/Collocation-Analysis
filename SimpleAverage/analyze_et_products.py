@@ -268,14 +268,14 @@ def main():
     # 设置数据路径
     data_path = r"Z:\Evaporation_Flux"
     
-    # 获取脚本所在目录
-    script_dir = Path(__file__).parent.absolute()
+    # 获取输出目录（改为数据目录）
+    output_dir = Path(data_path)
     
     print("=" * 80)
     print("ET产品数据集元数据分析工具")
     print("=" * 80)
     print(f"\n分析路径: {data_path}")
-    print(f"输出路径: {script_dir}\n")
+    print(f"输出路径: {output_dir}\n")
     
     # 检查路径是否存在
     if not os.path.exists(data_path):
@@ -298,18 +298,18 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # 保存详细信息
-    detail_file = script_dir / f"ET_products_detail_{timestamp}.csv"
+    detail_file = output_dir / f"ET_products_detail_{timestamp}.csv"
     df_detail.to_csv(detail_file, index=False, encoding='utf-8-sig')
     print(f"✓ 详细信息已保存至: {detail_file}")
     
     # 保存汇总信息
-    summary_file = script_dir / f"ET_products_summary_{timestamp}.csv"
+    summary_file = output_dir / f"ET_products_summary_{timestamp}.csv"
     df_summary.to_csv(summary_file, index=False, encoding='utf-8-sig')
     print(f"✓ 汇总信息已保存至: {summary_file}")
     
     # 保存为Excel（如果安装了openpyxl）
     try:
-        excel_file = script_dir / f"ET_products_report_{timestamp}.xlsx"
+        excel_file = output_dir / f"ET_products_report_{timestamp}.xlsx"
         with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
             df_summary.to_excel(writer, sheet_name='数据集汇总', index=False)
             df_detail.to_excel(writer, sheet_name='详细信息', index=False)
