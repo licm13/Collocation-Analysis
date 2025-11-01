@@ -261,8 +261,10 @@ def main():
 
     # 5. 绘图
     print("5. 生成可视化图表...")
-    output_dir = Path(__file__).parent.parent / "SimpleAverage"
-    output_path = output_dir / "simple_average_demo.png"
+    # 保存到脚本当前路径下的 figures 文件夹
+    fig_dir = Path(__file__).resolve().parent / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    output_path = fig_dir / "simple_average_example.png"
     plot_results(truth, products, averaged, noise_levels, output_path)
     print()
 

@@ -634,7 +634,7 @@ def create_method_comparison_table(all_results):
 
                     rmse_str = '[' + ', '.join([f'{r:.4f}' for r in rmse_est]) + ']'
 
-                    print(f"{method:<10} {n_prod:<10} {rmse_str:<40} {mean_rel_err:>6.2f}%        OK")
+                    print(f"{method:<10} {n_prod:<10} {rmse_str:<40} {mean_rel_err:>6.2f}%      OK")
                 else:
                     error_msg = str(results[method].get('error', 'Unknown error')).split('\n')[0][:50]
                     print(f"{method:<10} {'N/A':<10} {'FAILED':<40} {'N/A':<15} {error_msg}")
@@ -642,7 +642,7 @@ def create_method_comparison_table(all_results):
                 # Handle case where method wasn't run (e.g. EC for < 4 products)
                 pass
 
-# ============================================================================
+# =================================================================
 # Main Execution (MODIFIED)
 # ============================================================================
 
@@ -699,17 +699,20 @@ def main():
     print("\n" + "="*100)
     print("CREATING VISUALIZATIONS")
     print("="*100)
+    # create figures folder under current script
+    fig_dir = os.path.join(os.path.dirname(__file__), 'figures')
+    os.makedirs(fig_dir, exist_ok=True)
 
     for scenario_name in all_results.keys():
         scenario = all_results[scenario_name]['scenario']
         results = all_results[scenario_name]['results']
         filename = scenario_name.lower().replace(' ', '_') + '_comparison.png'
-        filepath = os.path.join(os.path.dirname(__file__), filename)
+        filepath = os.path.join(fig_dir, filename)
         print(f"\nCreating figure for {scenario_name}...")
         plot_scenario_comparison(scenario, results, save_path=filepath)
 
     print("\nCreating overall comparison figure...")
-    overall_path = os.path.join(os.path.dirname(__file__), 'overall_comparison.png')
+    overall_path = os.path.join(fig_dir, 'overall_comparison.png')
     plot_overall_comparison(all_results, save_path=overall_path)
 
     create_method_comparison_table(all_results)
@@ -717,7 +720,7 @@ def main():
     print("\n" + "="*100)
     print("ANALYSIS COMPLETE")
     print("="*100)
-    print(f"\nFigures saved in: {os.path.dirname(__file__)}")
+    print(f"\nFigures saved in: {fig_dir}")
     print("\nSummary:")
     print("- All methods (IVD, IVS, TC, TCH, EIVD, EC, BTC, BTCH) compared.")
     print("- 6 complex scenarios tested.")

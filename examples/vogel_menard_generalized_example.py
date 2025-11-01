@@ -1,4 +1,7 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+import os
 
 # -----------------------------------------------------------------
 # 0. 模拟数据 (基于 Vogel & Ménard 2023, Sect. 5)
@@ -190,3 +193,77 @@ print(f"D(3,4) 误差: {D_34_est - D_34_sim:.4f} (理论: +0.4)")
 # 这凸显了 Vogel & Ménard (2023) 的核心观点：
 # 必须仔细选择假设（即选择哪些数据集对假设为独立），
 # 将最可靠的独立假设用于 "基础多边形" [cite: 4909, 4921]。
+
+# -----------------------------------------------------------------
+# 5. 可视化与保存
+# -----------------------------------------------------------------
+# 保存到脚本同目录的 figures 文件夹
+script_dir = Path(__file__).resolve().parent
+fig_dir = script_dir / "figures"
+fig_dir.mkdir(parents=True, exist_ok=True)
+script_stem = Path(__file__).stem
+
+# 5.1 误差方差 C_i 真值 vs 估计
+labels_c = ['C1', 'C2', 'C3', 'C4']
+true_c_vals = [true_C[1], true_C[2], true_C[3], true_C[4]]
+est_c_vals = [estimated_C[1], estimated_C[2], estimated_C[3], estimated_C[4]]
+
+plt.figure(figsize=(7, 4))
+x = np.arange(len(labels_c))
+width = 0.35
+plt.bar(x - width/2, true_c_vals, width, label='True C', color='#4C78A8')
+plt.bar(x + width/2, est_c_vals, width, label='Estimated C', color='#F58518')
+plt.xticks(x, labels_c)
+plt.ylabel('Variance')
+plt.title('Error Variance Comparison (C_i)')
+plt.legend()
+plt.tight_layout()
+out1 = fig_dir / f"{script_stem}_variance_comparison.png"
+plt.savefig(out1, dpi=150, bbox_inches='tight')
+plt.close()
+
+# 5.2 依赖项 D(2,4), D(3,4) 真值 vs 估计
+labels_d = ['D(2,4)', 'D(3,4)']
+true_d_vals = [D_24_sim, D_34_sim]
+est_d_vals = [estimated_D[(2, 4)], estimated_D[(3, 4)]]
+
+plt.figure(figsize=(7, 4))
+x = np.arange(len(labels_d))
+plt.bar(x - width/2, true_d_vals, width, label='True D', color='#54A24B')
+plt.bar(x + width/2, est_d_vals, width, label='Estimated D', color='#E45756')
+plt.xticks(x, labels_d)
+plt.ylabel('Dependency')
+plt.title('Error Dependency Comparison (D_ij)')
+plt.legend()
+plt.tight_layout()
+out2 = fig_dir / f"{script_stem}_dependency_comparison.png"
+plt.savefig(out2, dpi=150, bbox_inches='tight')
+plt.close()
+
+# 5.3 残差差分方差 Gamma 矩阵热图
+Gamma_mat = np.zeros((4, 4))
+for i in range(4):
+    for j in range(4):
+        if i == j:
+            Gamma_mat[i, j] = 0.0
+        else:
+            a, b = min(i+1, j+1), max(i+1, j+1)
+            Gamma_mat[i, j] = Gamma[(a, b)]
+
+plt.figure(figsize=(5.5, 4.5))
+im = plt.imshow(Gamma_mat, cmap='viridis')
+plt.colorbar(im, fraction=0.046, pad=0.04, label='Var(d_i - d_j)')
+plt.xticks(range(4), ['1', '2', '3', '4'])
+plt.yticks(range(4), ['1', '2', '3', '4'])
+plt.xlabel('j')
+plt.ylabel('i')
+plt.title('Observed Residual Variances Γ(i,j)')
+plt.tight_layout()
+out3 = fig_dir / f"{script_stem}_gamma_heatmap.png"
+plt.savefig(out3, dpi=150, bbox_inches='tight')
+plt.close()
+
+print(f"\n✓ Figures saved to: {fig_dir}")
+print(f"  - {out1.name}")
+print(f"  - {out2.name}")
+print(f"  - {out3.name}")

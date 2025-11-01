@@ -13,6 +13,11 @@ from comprehensive_comparison import (
     setup_publication_style
 )
 
+# Add plotting support
+import matplotlib.pyplot as plt
+from pathlib import Path
+import numpy as np
+
 print("Testing comprehensive comparison script...")
 print("="*60)
 
@@ -42,3 +47,41 @@ print("\n" + "="*60)
 print("All basic tests passed! ✓")
 print("\nTo run full comparison with figures:")
 print("  python comprehensive_comparison.py")
+
+# --------------------------------------------------------------------
+# Quick diagnostic figure: RMSE comparison for the classical methods
+try:
+    # collect RMSE per method (safe access)
+    methods = []
+    rmse_vals = []
+    for method, result in results.items():
+        methods.append(method)
+        if isinstance(result, dict) and 'rmse' in result and result['rmse'] is not None:
+            # try to take the first value or mean of array-like
+            try:
+                val = float(np.nanmean(result['rmse']))
+            except Exception:
+                val = np.nan
+        else:
+            val = np.nan
+        rmse_vals.append(val)
+
+    # prepare output directory next to this script
+    fig_dir = Path(__file__).resolve().parent / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    script_stem = Path(__file__).stem
+    out_file = fig_dir / f"{script_stem}_rmse_comparison.png"
+
+    # simple bar plot
+    plt.figure(figsize=(8, 4))
+    x = np.arange(len(methods))
+    plt.bar(x, rmse_vals, color='C0', alpha=0.8)
+    plt.xticks(x, methods, rotation=45, ha='right')
+    plt.ylabel("RMSE")
+    plt.title("Quick RMSE Comparison (classical methods)")
+    plt.tight_layout()
+    plt.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"\nSaved quick diagnostic figure: {out_file}")
+except Exception as _err:
+    print(f"\nFailed to create/save quick figure: {_err}")

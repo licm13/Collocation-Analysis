@@ -19,7 +19,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+import sys
+import os
 
+# Add parent directory for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from collocation.covariance import build_sigma_from_collocation
 from collocation.fuse import estimate_bias_from_collocation
 
@@ -262,7 +266,7 @@ def run_covariance_comparison(output_path: str | Path | None = None) -> dict:
     figure_path = (
         Path(output_path)
         if output_path is not None
-        else Path(__file__).with_name("covariance_method_comparison.png")
+        else (Path(__file__).resolve().parent / "figures" / "covariance_method_comparison.png")
     )
     _plot_results(summary, configs, figure_path)
 

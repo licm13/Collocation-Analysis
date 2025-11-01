@@ -294,9 +294,13 @@ def plot_results(data, merged_ivd, merged_ec):
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    # save to the same directory as this script (works on Windows)
-    out_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'collocation_results.png')
-    plt.savefig(out_file, dpi=150)
+    # save under ./figures with script name prefix
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    fig_dir = os.path.join(script_dir, "figures")
+    os.makedirs(fig_dir, exist_ok=True)
+    script_stem = os.path.splitext(os.path.basename(__file__))[0]
+    out_file = os.path.join(fig_dir, f"{script_stem}_collocation_results.png")
+    plt.savefig(out_file, dpi=150, bbox_inches="tight")
     print(f"Plot saved as '{out_file}'")
 
 

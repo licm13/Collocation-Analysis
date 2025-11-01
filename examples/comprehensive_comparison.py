@@ -263,7 +263,7 @@ def simulate_scenario_4_biased(n=500, seed=45):
     # Error parameters with strong biases
     rmse_true = np.array([0.02, 0.03, 0.04, 0.025])
     bias_add = np.array([0.0, 0.05, -0.04, 0.03])  # Strong additive bias
-    bias_mul = np.array([1.0, 1.2, 0.8, 1.15])     # Strong multiplicative bias
+    bias_mul = np.array([1.0, 1.2, 0.8, 1.15])    # Strong multiplicative bias
 
     products = []
     for i in range(4):
@@ -746,12 +746,12 @@ def create_method_comparison_table(all_results):
 
                     rmse_str = '[' + ', '.join([f'{r:.4f}' for r in rmse_est]) + ']'
 
-                    print(f"{method:<10} {n_prod:<10} {rmse_str:<40} {mean_rel_err:>6.2f}%        OK")
+                    print(f"{method:<10} {n_prod:<10} {rmse_str:<40} {mean_rel_err:>6.2f}%      OK")
                 else:
                     print(f"{method:<10} {'N/A':<10} {'FAILED':<40} {'N/A':<15} {results[method].get('error', 'Unknown error')}")
 
 
-# ============================================================================
+# =================================================================
 # Main Execution
 # ============================================================================
 
@@ -806,19 +806,23 @@ def main():
     print("CREATING VISUALIZATIONS")
     print("="*100)
 
+    # Create a 'figures' folder under this script
+    fig_dir = os.path.join(os.path.dirname(__file__), 'figures')
+    os.makedirs(fig_dir, exist_ok=True)
+
     for scenario_name in all_results.keys():
         scenario = all_results[scenario_name]['scenario']
         results = all_results[scenario_name]['results']
 
         filename = scenario_name.lower().replace(' ', '_') + '_comparison.png'
-        filepath = os.path.join(os.path.dirname(__file__), filename)
+        filepath = os.path.join(fig_dir, filename)
 
         print(f"\nCreating figure for {scenario_name}...")
         plot_scenario_comparison(scenario, results, save_path=filepath)
 
     # Create overall comparison
     print("\nCreating overall comparison figure...")
-    overall_path = os.path.join(os.path.dirname(__file__), 'overall_comparison.png')
+    overall_path = os.path.join(fig_dir, 'overall_comparison.png')
     plot_overall_comparison(all_results, save_path=overall_path)
 
     # Print comparison table
@@ -827,7 +831,7 @@ def main():
     print("\n" + "="*100)
     print("ANALYSIS COMPLETE")
     print("="*100)
-    print(f"\nFigures saved in: {os.path.dirname(__file__)}")
+    print(f"\nFigures saved in: {fig_dir}")
     print("\nSummary:")
     print("- Individual scenario comparisons show detailed method performance")
     print("- Overall comparison shows method robustness across scenarios")

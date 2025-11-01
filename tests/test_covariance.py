@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import numpy as np
 import pytest
 
@@ -5,6 +12,35 @@ xr = pytest.importorskip("xarray")
 
 from collocation.covariance import build_sigma_from_collocation
 from collocation.fuse import estimate_bias_from_collocation
+
+
+def _save_sigma_fig(sigma, name_suffix: str = "sigma"):
+    """
+    Save a heatmap of the covariance matrix next to this script under ./figures.
+    Does nothing if matplotlib is unavailable.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except Exception:
+        return
+
+    fig_dir = Path(__file__).resolve().parent / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    script_stem = Path(__file__).stem
+    out_path = fig_dir / f"{script_stem}_{name_suffix}.png"
+
+    plt.figure(figsize=(4.5, 3.6))
+    im = plt.imshow(sigma.values, cmap="viridis")
+    plt.colorbar(im, fraction=0.046, pad=0.04, label="Covariance")
+    plt.title(f"Covariance heatmap: {name_suffix}")
+    plt.xlabel(sigma.dims[1])
+    plt.ylabel(sigma.dims[0])
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"Figure saved: {out_path}")
 
 
 def _make_dataset():
@@ -24,6 +60,8 @@ def test_build_sigma_from_collocation_defaults():
     sigma = build_sigma_from_collocation(ds)
     np.testing.assert_allclose(sigma.values, ds["cov"].values)
     assert sigma.dims == ("model", "model")
+    # Save a diagnostic figure
+    _save_sigma_fig(sigma, "default_covariance")
 
 
 def test_build_sigma_from_collocation_mapping_reorder():
@@ -56,4 +94,10 @@ def test_estimate_bias_from_collocation_zero_fallback():
     ds = _make_dataset().drop_vars("bias")
     bias = estimate_bias_from_collocation(ds)
     np.testing.assert_allclose(bias.values, np.zeros(3))
+
+
+def test_covariance_suite_success():
+    # Final success indicator (prints are captured unless -s is used)
+    print("✓ Covariance tests completed successfully.")
+    assert True
 

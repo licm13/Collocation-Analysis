@@ -34,11 +34,42 @@ from collocation import (
     BAYESIAN_TCH_AVAILABLE, BayesianTCH
 )
 # Import simulation functions from the other example
-from comprehensive_comparison import (
-    setup_publication_style,
-    simulate_scenario_3_timevarying, # For Bayesian plot
-    METHOD_COLORS
-)
+try:
+    from comprehensive_comparison import (
+        setup_publication_style,
+        simulate_scenario_3_timevarying, # For Bayesian plot
+        METHOD_COLORS
+    )
+except ImportError:
+    print("Error: 'comprehensive_comparison.py' not found.")
+    print("Please ensure it is in the same directory or accessible in sys.path.")
+    # Define fallbacks if import fails
+    def setup_publication_style(): pass
+    def simulate_scenario_3_timevarying():
+        print("Fallback simulation running...")
+        np.random.seed(44)
+        n=500
+        t = np.linspace(0, 4*np.pi, n)
+        truth = 0.2 + 0.15 * np.sin(t) + 0.1 * np.sin(2*t)
+        rmse_base = np.array([0.02, 0.03, 0.04, 0.025])
+        seasonal = 1 + 0.5 * np.sin(t / 2)
+        products = []
+        for i in range(4):
+            rmse_t = rmse_base[i] * seasonal
+            error = np.random.normal(0, 1, n) * rmse_t
+            product = truth + error
+            products.append(product)
+        data = np.array(products)
+        rmse_true = rmse_base * np.mean(seasonal)
+        return {
+            'data': data, 'truth': truth, 'rmse_true': rmse_true,
+            'name': 'Time-Varying Errors (Fallback)'
+        }
+    METHOD_COLORS = {
+        'TC': '#029E73', 'EIVD': '#CC3311', 'EC': '#9558B2',
+        'BTC': '#8B4513', 'TCH': '#FBAFE4', 'BTCH': '#949494'
+    }
+
 
 warnings.filterwarnings('ignore')
 setup_publication_style() # Use the same publication style
@@ -76,7 +107,8 @@ def generate_correlated_scenario(n=500, corr_level=0.0, seed=42):
         L = np.linalg.cholesky(err_cov_matrix)
     except np.linalg.LinAlgError:
         # Fallback for non-positive-definite (e.g., corr=1)
-        L = np.array([[rmse_true[0], 0], [cov_12 / rmse_true[0], np.sqrt(rmse_true[1]**2 - (cov_12/rmse_true[0])**2)]])
+        if cov_12 == 0: cov_12 = 1e-9 # avoid division by zero
+        L = np.array([[rmse_true[0], 0], [cov_12 / rmse_true[0], np.sqrt(max(0, rmse_true[1]**2 - (cov_12/rmse_true[0])**2))]])
 
     uncorr_err = np.random.normal(0, 1, (2, n))
     corr_err_12 = (L @ uncorr_err)
@@ -146,7 +178,7 @@ def run_sensitivity_analysis(param_levels):
                     # Estimate error corr for P1, P2
                     est_corr_val = res.EeeT[0][corr_products[0], corr_products[1]] / \
                                    np.sqrt(res.EeeT[0][corr_products[0], corr_products[0]] * \
-                                           res.EeeT[0][corr_products[1], corr_products[1]])
+                                            res.EeeT[0][corr_products[1], corr_products[1]])
                 else:
                     res = func(data_slice)
                     EeeT = res[0] # EeeT is the first return val
@@ -154,7 +186,7 @@ def run_sensitivity_analysis(param_levels):
                         # EIVD estimates EeeT directly
                         est_corr_val = EeeT[corr_products[0], corr_products[1]] / \
                                        np.sqrt(EeeT[corr_products[0], corr_products[0]] * \
-                                               EeeT[corr_products[1], corr_products[1]])
+                                                EeeT[corr_products[1], corr_products[1]])
                     else:
                         est_corr_val = np.nan # TC doesn't estimate it
                 
@@ -210,30 +242,36 @@ def run_bayesian_comparison(scenario):
 
     data = scenario['data'][:3, :] # Use 3 products
     
-    # Run BTC (complex model)
-    print("  Running BTC (complex model)...")
-    btc = BayesianTC(data)
-    btc.run_inference(niter=1000, nadvi=30000, nchains=2, seed=42)
-    btc_samples = btc.get_posterior_samples('sigmap') # (n_samples, n_products)
-    
-    # Run BTCH (simple model)
-    print("  Running BTCH (simple model)...")
-    btch = BayesianTCH(data)
-    btch.run_inference(niter=1000, nadvi=30000, nchains=2, seed=42)
-    btch_samples = btch.get_posterior_samples('sigmap') # (n_samples, n_products)
+    try:
+        # Run BTC (complex model)
+        print("  Running BTC (complex model)...")
+        btc = BayesianTC(data)
+        btc.run_inference(niter=1000, nadvi=30000, nchains=2, seed=42)
+        btc_samples = btc.get_posterior_samples('sigmap') # (n_samples, n_products)
+        
+        # Run BTCH (simple model)
+        print("  Running BTCH (simple model)...")
+        btch = BayesianTCH(data)
+        btch.run_inference(niter=1000, nadvi=30000, nchains=2, seed=42)
+        btch_samples = btch.get_posterior_samples('sigmap') # (n_samples, n_products)
 
-    # Format for DataFrame
-    df_btc = pd.DataFrame(btc_samples, columns=['Product 1', 'Product 2', 'Product 3'])
-    df_btc['Method'] = 'BTC (Time-Varying)'
+        # Format for DataFrame
+        df_btc = pd.DataFrame(btc_samples, columns=['Product 1', 'Product 2', 'Product 3'])
+        df_btc['Method'] = 'BTC (Time-Varying)'
+        
+        df_btch = pd.DataFrame(btch_samples, columns=['Product 1', 'Product 2', 'Product 3'])
+        df_btch['Method'] = 'BTCH (Constant Err)'
+        
+        # Melt for seaborn
+        df_all = pd.concat([df_btc, df_btch])
+        df_melted = df_all.melt(id_vars='Method', var_name='Product', value_name='RMSE Estimate')
+        
+        return df_melted
     
-    df_btch = pd.DataFrame(btch_samples, columns=['Product 1', 'Product 2', 'Product 3'])
-    df_btch['Method'] = 'BTCH (Constant Err)'
-    
-    # Melt for seaborn
-    df_all = pd.concat([df_btc, df_btch])
-    df_melted = df_all.melt(id_vars='Method', var_name='Product', value_name='RMSE Estimate')
-    
-    return df_melted
+    except Exception as e:
+        print(f"  Bayesian analysis failed: {e}")
+        print("  Skipping Bayesian plot.")
+        return None
 
 
 # --- 4. New "Good Plot" Functions ---
@@ -245,6 +283,10 @@ def plot_sensitivity_breaking_points(df, save_path=None):
     """
     print("\nCreating Plot 1: Sensitivity 'Breaking Point' Plot")
     
+    if df.empty:
+        print("  DataFrame is empty, skipping plot 1.")
+        return
+        
     # Aggregate results (mean over P1 and P2)
     df_agg = df.groupby(['param_level', 'method']).relative_error.mean().reset_index()
 
@@ -268,9 +310,13 @@ def plot_sensitivity_breaking_points(df, save_path=None):
     ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
     
+    plt.tight_layout()
     if save_path:
-        plt.savefig(save_path, dpi=300)
-        print(f"Saved: {save_path}")
+        try:
+            plt.savefig(save_path, dpi=300)
+            print(f"Saved: {save_path}")
+        except Exception as e:
+            print(f"Error saving plot 1: {e}")
     plt.close()
 
 
@@ -280,8 +326,8 @@ def plot_bayesian_posterior_comparison(df_melted, scenario, save_path=None):
     Shows the full uncertainty distribution from BTC and BTCH.
     """
     print("\nCreating Plot 2: Bayesian Posterior Comparison")
-    if df_melted is None:
-        print("  Skipped (Bayesian libraries not found).")
+    if df_melted is None or df_melted.empty:
+        print("  Skipped (Bayesian results not available or empty).")
         return
 
     rmse_true = scenario['rmse_true'][:3]
@@ -315,10 +361,13 @@ def plot_bayesian_posterior_comparison(df_melted, scenario, save_path=None):
         labels.append('True RMSE')
         g.legend(handles=handles, labels=labels)
 
-    
+    plt.tight_layout()
     if save_path:
-        plt.savefig(save_path, dpi=300)
-        print(f"Saved: {save_path}")
+        try:
+            plt.savefig(save_path, dpi=300)
+            print(f"Saved: {save_path}")
+        except Exception as e:
+            print(f"Error saving plot 2: {e}")
     plt.close()
 
 
@@ -329,11 +378,19 @@ def plot_correlation_estimation(df, save_path=None):
     """
     print("\nCreating Plot 3: Error Correlation Estimation")
     
+    if df.empty:
+        print("  DataFrame is empty, skipping plot 3.")
+        return
+        
     # Filter to methods that estimate correlation
     df_corr = df[df['est_corr'].notna()].copy()
+    
+    if df_corr.empty:
+        print("  No correlation estimates found, skipping plot 3.")
+        return
+        
     df_corr['true_corr'] = df_corr['param_level']
     
-    # Plot only one point per method and level
     # Aggregate only numeric columns to avoid trying to average string/object columns
     df_corr_agg = df_corr.groupby(['param_level', 'method']).agg({'est_corr': 'mean', 'true_corr': 'mean'}).reset_index()
 
@@ -359,9 +416,13 @@ def plot_correlation_estimation(df, save_path=None):
     ax.legend(title='Method')
     ax.grid(True, alpha=0.3)
     
+    plt.tight_layout()
     if save_path:
-        plt.savefig(save_path, dpi=300)
-        print(f"Saved: {save_path}")
+        try:
+            plt.savefig(save_path, dpi=300)
+            print(f"Saved: {save_path}")
+        except Exception as e:
+            print(f"Error saving plot 3: {e}")
     plt.close()
 
 
@@ -371,6 +432,20 @@ def main():
     print("="*100)
     print("ADVANCED SENSITIVITY ANALYSIS")
     print("="*100)
+    
+    # --- 0. Setup Figure Directory ---
+    # 补丁：自动创建输出目录
+    # 获取此脚本所在的目录 (e.g., .../examples)
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    # 定义输出目录 (e.g., .../examples/figures)
+    FIG_DIR = os.path.join(SCRIPT_DIR, "figures")
+    os.makedirs(FIG_DIR, exist_ok=True)
+    print(f"Ensured output directory exists: {FIG_DIR}")
+
+    # 补丁：定义完整的保存路径
+    save_path_1 = os.path.join(FIG_DIR, "adv_plot_1_corr_sensitivity.png")
+    save_path_2 = os.path.join(FIG_DIR, "adv_plot_2_bayesian_violin.png")
+    save_path_3 = os.path.join(FIG_DIR, "adv_plot_3_corr_estimation.png")
     
     # --- Analysis 1: Sensitivity to Error Correlation ---
     print("\nStarting Analysis 1: Sensitivity to Error Correlation")
@@ -383,12 +458,12 @@ def main():
     # Create the plots
     plot_sensitivity_breaking_points(
         results_df, 
-        save_path="examples/adv_plot_1_corr_sensitivity.png"
+        save_path=save_path_1
     )
     
     plot_correlation_estimation(
         results_df,
-        save_path="examples/adv_plot_3_corr_estimation.png"
+        save_path=save_path_3
     )
 
     # --- Analysis 2: Bayesian Model Comparison ---
@@ -402,13 +477,13 @@ def main():
     plot_bayesian_posterior_comparison(
         bayesian_results_df,
         scenario,
-        save_path="examples/adv_plot_2_bayesian_violin.png"
+        save_path=save_path_2
     )
     
     print("\n" + "="*100)
     print("ADVANCED ANALYSIS COMPLETE")
     print("="*100)
-    print(f"\nNew advanced figures saved in: {os.path.abspath('examples/')}")
+    print(f"\nNew advanced figures saved in: {FIG_DIR}")
     print("- adv_plot_1_corr_sensitivity.png")
     print("- adv_plot_2_bayesian_violin.png")
     print("- adv_plot_3_corr_estimation.png")

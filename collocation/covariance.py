@@ -175,6 +175,24 @@ def _apply_shrinkage(matrix: np.ndarray, shrinkage: str, lam: float | None) -> n
     return shrunk
 
 
+def _ensure_unique_square_dims(da: xr.DataArray) -> xr.DataArray:
+    """Ensure 2D square arrays have unique dimension names (e.g., 'model' and 'model_2')."""
+    if da.ndim != 2:
+        return da
+    d0, d1 = da.dims
+    if d0 != d1:
+        return da
+    base = d0
+    data = da.to_numpy()
+    new_dims = (base, f"{base}_2")
+    # duplicate coordinates for the second axis
+    if base in da.coords:
+        coords = {base: da[base].values, f"{base}_2": da[base].values}
+    else:
+        coords = {base: np.arange(data.shape[0]), f"{base}_2": np.arange(data.shape[1])}
+    return xr.DataArray(data, dims=new_dims, coords=coords, name=da.name, attrs=getattr(da, "attrs", {}))
+
+
 def build_sigma_from_collocation(
     tc: xr.Dataset,
     mapping: Mapping[str, object] | None = None,
@@ -229,6 +247,8 @@ def build_sigma_from_collocation(
         raise ValueError("Dataset does not contain variance or covariance information")
 
     if cov_da is not None:
+        # normalise dims: avoid duplicate names like ('model','model')
+        cov_da = _ensure_unique_square_dims(cov_da)
         if cov_da.ndim != 2:
             raise ValueError("Covariance array must be two-dimensional")
         if cov_da.shape[0] != cov_da.shape[1]:
@@ -238,12 +258,17 @@ def build_sigma_from_collocation(
         if var_da is None or var_da.ndim != 1:
             raise ValueError("Variance array must be one-dimensional when covariance is absent")
         dim = var_da.dims[0] if var_da.dims else "model"
-        coords = {dim: var_da[dim] if dim in var_da.coords else np.arange(var_da.size)}
+        dim2 = f"{dim}_2"
+        # coords for both axes
+        coord_vals = var_da[dim].values if dim in var_da.coords else np.arange(var_da.size)
+        coords = {dim: coord_vals, dim2: coord_vals}
         diag_matrix = np.diag(var_da.astype(float).values)
-        sigma = xr.DataArray(diag_matrix, coords=coords, dims=(dim, dim), name="Sigma")
+        sigma = xr.DataArray(diag_matrix, coords=coords, dims=(dim, dim2), name="Sigma")
 
     sigma = sigma.rename("Sigma")
-    sigma = 0.5 * (sigma + sigma.transpose(..., sigma.dims[::-1]))
+    # symmetrise (dims are unique so transpose works)
+    sigma_t = sigma.transpose(*sigma.dims[::-1])
+    sigma = 0.5 * (sigma + sigma_t)
 
     shrunk = _apply_shrinkage(sigma.to_numpy(), shrinkage=shrinkage, lam=lam)
     sigma = xr.DataArray(shrunk, coords=sigma.coords, dims=sigma.dims, name="Sigma")

@@ -16,12 +16,63 @@ import os
 # Add parent directory for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
-import matplotlib.pyplot as plt
 from collocation import ETCC, TripleCollocation
 from collocation.utils import calculate_all_metrics
 
+# Add imports
+import os
+import matplotlib.pyplot as plt
+from matplotlib import rcParams  # <-- 导入 rcParams
+from datetime import datetime
+
 # Set random seed for reproducibility
 np.random.seed(42)
+
+# ============================================================================
+# 🌟 Nature/Science Figure Configuration 🌟
+# ============================================================================
+def setup_publication_style():
+    """Setup matplotlib for publication-quality figures (Nature/Science style)."""
+
+    # Font settings
+    rcParams['font.family'] = 'sans-serif'
+    rcParams['font.sans-serif'] = ['Arial', 'Helvetica', 'DejaVu Sans']
+    rcParams['font.size'] = 7
+    rcParams['axes.labelsize'] = 8
+    rcParams['axes.titlesize'] = 9
+    rcParams['xtick.labelsize'] = 7
+    rcParams['ytick.labelsize'] = 7
+    rcParams['legend.fontsize'] = 6
+
+    # Line and marker settings
+    rcParams['lines.linewidth'] = 1.0
+    rcParams['lines.markersize'] = 3
+    rcParams['patch.linewidth'] = 0.75
+
+    # Axes settings
+    rcParams['axes.linewidth'] = 0.75
+    rcParams['axes.grid'] = True
+    rcParams['grid.alpha'] = 0.3
+    rcParams['grid.linewidth'] = 0.5
+
+    # Tick settings
+    rcParams['xtick.major.width'] = 0.75
+    rcParams['ytick.major.width'] = 0.75
+    rcParams['xtick.minor.width'] = 0.5
+    rcParams['ytick.minor.width'] = 0.5
+
+    # Figure settings
+    rcParams['figure.dpi'] = 300
+    rcParams['savefig.dpi'] = 300
+    rcParams['savefig.bbox'] = 'tight'
+    rcParams['savefig.pad_inches'] = 0.05
+
+    # Legend settings
+    rcParams['legend.frameon'] = True
+    rcParams['legend.framealpha'] = 0.9
+    rcParams['legend.edgecolor'] = 'gray'
+    rcParams['legend.fancybox'] = False
+
 
 def generate_precipitation_data(n_samples=500):
     """
@@ -175,60 +226,86 @@ def compare_tc_etcc(truth, product1, product2, product3):
     }
 
 
-def create_visualizations(results):
+def get_fig_output_dir(folder_name='figures'):
     """
-    Create comprehensive visualization comparing TC and ETCC.
+    Return a path to a figures directory next to this script and ensure it exists.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    fig_dir = os.path.join(script_dir, folder_name)
+    os.makedirs(fig_dir, exist_ok=True)
+    return fig_dir
 
-    Args:
-        results: Dictionary from compare_tc_etcc
+def save_all_figures(fig_dir=None, prefix='etcc', dpi=150, timestamp=True):
     """
+    Save all current matplotlib figures into fig_dir.
+    """
+    if fig_dir is None:
+        fig_dir = get_fig_output_dir()
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S") if timestamp else ""
+    for i, num in enumerate(plt.get_fignums(), start=1):
+        fig = plt.figure(num)
+        base = f"{prefix}_figure_{i}"
+        fname = f"{base}_{ts}.png" if ts else f"{base}.png"
+        out_path = os.path.join(fig_dir, fname)
+        fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+    print(f"✓ Figures saved to: {fig_dir}")
+
+def create_visualizations(results, save=True, prefix='etcc'):
+    """
+    Create / finalize visualizations and optionally save all open figures
+    into the figures directory next to this script.
+    """
+    # 🌟 Apply publication style
+    setup_publication_style()
+    
     truth = results['truth']
     tc_merged = results['tc']['merged']
     etcc_merged = results['etcc']['merged']
     products = results['products']
 
-    fig = plt.figure(figsize=(16, 10))
+    # 🌟 Adjusted figure size for better N/S style layout (taller)
+    fig = plt.figure(figsize=(10, 8)) 
 
     # 1. Time series comparison
     ax1 = plt.subplot(3, 3, 1)
     n_display = min(100, len(truth))
-    ax1.plot(truth[:n_display], 'k-', linewidth=2, label='Truth', alpha=0.7)
-    ax1.plot(tc_merged[:n_display], 'b--', linewidth=1.5, label='TC Merged', alpha=0.7)
-    ax1.plot(etcc_merged[:n_display], 'r--', linewidth=1.5, label='ETCC Merged', alpha=0.7)
+    ax1.plot(truth[:n_display], 'k-', linewidth=1.2, label='Truth', alpha=0.7)
+    ax1.plot(tc_merged[:n_display], 'b--', linewidth=1.0, label='TC Merged', alpha=0.7)
+    ax1.plot(etcc_merged[:n_display], 'r--', linewidth=1.0, label='ETCC Merged', alpha=0.7)
     ax1.set_xlabel('Time Step')
     ax1.set_ylabel('Precipitation (mm)')
-    ax1.set_title('Time Series Comparison')
+    ax1.set_title('a) Time Series Comparison')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
     # 2. Scatter: TC vs Truth
     ax2 = plt.subplot(3, 3, 2)
-    ax2.scatter(truth, tc_merged, alpha=0.5, s=20, c='blue', edgecolors='none')
+    ax2.scatter(truth, tc_merged, alpha=0.5, s=10, c='blue', edgecolors='none') # Smaller scatter points
     max_val = max(truth.max(), tc_merged.max())
-    ax2.plot([0, max_val], [0, max_val], 'k--', linewidth=1, alpha=0.5)
+    ax2.plot([0, max_val], [0, max_val], 'k--', linewidth=0.75, alpha=0.5) # Thinner line
     ax2.set_xlabel('Truth (mm)')
     ax2.set_ylabel('TC Merged (mm)')
-    ax2.set_title(f'TC: R={results["tc"]["metrics"]["r"]:.3f}, RMSE={results["tc"]["metrics"]["RMSE"]:.2f}')
+    ax2.set_title(f'b) TC: R={results["tc"]["metrics"]["r"]:.3f}, RMSE={results["tc"]["metrics"]["RMSE"]:.2f}')
     ax2.grid(True, alpha=0.3)
 
     # 3. Scatter: ETCC vs Truth
     ax3 = plt.subplot(3, 3, 3)
-    ax3.scatter(truth, etcc_merged, alpha=0.5, s=20, c='red', edgecolors='none')
-    ax3.plot([0, max_val], [0, max_val], 'k--', linewidth=1, alpha=0.5)
+    ax3.scatter(truth, etcc_merged, alpha=0.5, s=10, c='red', edgecolors='none')
+    ax3.plot([0, max_val], [0, max_val], 'k--', linewidth=0.75, alpha=0.5)
     ax3.set_xlabel('Truth (mm)')
     ax3.set_ylabel('ETCC Merged (mm)')
-    ax3.set_title(f'ETCC: R={results["etcc"]["metrics"]["r"]:.3f}, RMSE={results["etcc"]["metrics"]["RMSE"]:.2f}')
+    ax3.set_title(f'c) ETCC: R={results["etcc"]["metrics"]["r"]:.3f}, RMSE={results["etcc"]["metrics"]["RMSE"]:.2f}')
     ax3.grid(True, alpha=0.3)
 
     # 4-6. Individual products
     for i, product in enumerate(products, 1):
         ax = plt.subplot(3, 3, 3 + i)
         metrics = calculate_all_metrics(truth, product)
-        ax.scatter(truth, product, alpha=0.5, s=20, edgecolors='none')
-        ax.plot([0, max_val], [0, max_val], 'k--', linewidth=1, alpha=0.5)
+        ax.scatter(truth, product, alpha=0.5, s=10, edgecolors='none')
+        ax.plot([0, max_val], [0, max_val], 'k--', linewidth=0.75, alpha=0.5)
         ax.set_xlabel('Truth (mm)')
         ax.set_ylabel(f'Product {i} (mm)')
-        ax.set_title(f'Product {i}: R={metrics["r"]:.3f}, RMSE={metrics["RMSE"]:.2f}')
+        ax.set_title(f'{chr(99+i)}) Product {i}: R={metrics["r"]:.3f}, RMSE={metrics["RMSE"]:.2f}')
         ax.grid(True, alpha=0.3)
 
     # 7. Weights comparison
@@ -242,7 +319,7 @@ def create_visualizations(results):
     ax7.bar(x_pos + width/2, etcc_weights, width, label='ETCC', color='red', alpha=0.7)
     ax7.set_xlabel('Product')
     ax7.set_ylabel('Weight')
-    ax7.set_title('Optimal Weights Comparison')
+    ax7.set_title('g) Optimal Weights Comparison')
     ax7.set_xticks(x_pos)
     ax7.set_xticklabels(['Product 1', 'Product 2', 'Product 3'])
     ax7.legend()
@@ -259,7 +336,7 @@ def create_visualizations(results):
     ax8.bar(x_pos + width/2, etcc_vals, width, label='ETCC', color='red', alpha=0.7)
     ax8.set_xlabel('Metric')
     ax8.set_ylabel('Value')
-    ax8.set_title('Performance Metrics Comparison')
+    ax8.set_title('h) Performance Metrics Comparison')
     ax8.set_xticks(x_pos)
     ax8.set_xticklabels(['Correlation', 'KGE', 'NSE'])
     ax8.legend()
@@ -273,21 +350,32 @@ def create_visualizations(results):
 
     ax9.hist(tc_errors, bins=30, alpha=0.5, label='TC Errors', color='blue', density=True)
     ax9.hist(etcc_errors, bins=30, alpha=0.5, label='ETCC Errors', color='red', density=True)
-    ax9.axvline(x=0, color='k', linestyle='--', linewidth=1)
+    ax9.axvline(x=0, color='k', linestyle='--', linewidth=0.75)
     ax9.set_xlabel('Error (Merged - Truth)')
     ax9.set_ylabel('Density')
-    ax9.set_title('Error Distribution')
+    ax9.set_title('i) Error Distribution')
     ax9.legend()
     ax9.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('etcc_comparison.png', dpi=300, bbox_inches='tight')
-    print(f"\nVisualization saved as 'etcc_comparison.png'")
-    plt.show()
-
+    # If figures are already created (plt.figure / ax used elsewhere), save them:
+    if save:
+        fig_dir = get_fig_output_dir(folder_name='figures') # 🌟 确保保存到 'figures' 文件夹
+        # 🌟 只保存当前创建的这一个图
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        fname = f"{prefix}_comparison_{ts}.png"
+        out_path = os.path.join(fig_dir, fname)
+        try:
+            fig.savefig(out_path, dpi=300, bbox_inches='tight') # 🌟 使用 N/S 标准的 300 DPI
+            print(f"✓ Figure saved to: {out_path}")
+        except Exception as e:
+            print(f"Error saving figure: {e}")
+        plt.close(fig) # 🌟 保存后关闭图形，释放内存
 
 def main():
-    """Main execution function."""
+    """
+    Script entry: generate data, run comparison, produce and save figures.
+    """
     print("\n" + "=" * 80)
     print("ETCC DEMONSTRATION: Extended Triple Collocation for Correlation")
     print("=" * 80)
@@ -304,9 +392,12 @@ def main():
     # Compare methods
     results = compare_tc_etcc(truth, product1, product2, product3)
 
-    # Create visualizations
-    print("\nCreating visualizations...")
-    create_visualizations(results)
+    # 🌟 Call the visualization function to create and save the plot
+    create_visualizations(results, save=True, prefix='etcc_comparison')
+    
+    # 🌟 (已删除原来多余的 save_all_figures 调用)
+
+    # plt.show()  # still commented out
 
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE")
