@@ -9,6 +9,25 @@ A comprehensive Python package for collocation-based error analysis of remote se
 
 Collocation analysis methods enable quantification of errors in multiple datasets without requiring ground truth. These techniques are widely used in remote sensing, climate science, and geophysical data validation.
 
+## Architecture Overview
+
+The repository is organised around a reusable `collocation` Python package and a collection of executable examples and regression tests. The modules map one-to-one to the statistical techniques implemented in the original MATLAB toolbox:
+
+- **Core estimators (`collocation/`)**
+  - `tc.py`, `ivd.py`, `ivs.py`, `eivd.py`, `ec.py`, `etcc_evaluation.py`, `etcc_spatial.py`: vector-based analytical solutions for 2-, 3- and 4-way collocation problems.
+  - `etcc.py`: object-oriented implementations of the Wei et al. (2023) Triple Collocation merger (`TripleCollocation`) and the exhaustive-search correlation maximiser (`ETCC`).
+  - `bayesian_tc.py`, `bayesian_tch.py`: optional PyMC3-based inference engines with full posterior diagnostics.
+  - `simple_average.py`: deterministic fusion baselines used for benchmarking and quick quality control.
+  - `fuse.py`, `covariance.py`, `utils.py`: shared helpers for bias estimation, covariance construction, and skill metrics (KGE, NSE, etc.). Optional xarray powered helpers expose availability flags (`XR_AVAILABLE`, `ELI_AVAILABLE`) so light-weight installs can gracefully skip the ecosystem modules.
+- **Applied workflows (`collocation/eli.py`, `ELI Application/`)**
+  - High-level processors that orchestrate collocation runs for ecosystem limitation studies including NetCDF I/O.
+- **Examples (`examples/`)**
+  - Reproducible scripts spanning introductory walkthroughs (`example_all_methods.py`), publication-grade comparisons (`comprehensive_comparison_TCH_included.py`), and the new `robust_collocation_scenarios.py` stress suite.
+- **Tests (`tests/`)**
+  - Unit and integration tests covering estimator algebra, covariance utilities, and multi-scenario regression checks (`test_method_workflows.py`).
+
+This layered structure keeps numerical kernels small and testable while allowing end-to-end pipelines to be expressed as Python scripts that can double as tutorials.
+
 ## Features
 
 ### Implemented Methods
@@ -82,9 +101,10 @@ pip install -e .
 - Matplotlib >= 3.1.0 (for examples)
 - pytest >= 6.0.0 (for testing)
 
-#### Optional Dependencies (for Bayesian methods)
+#### Optional Dependencies
 - PyMC3 >= 3.11.0 (for Bayesian Triple Collocation)
 - Theano >= 1.0.0 (backend for PyMC3)
+- xarray >= 0.18 (for covariance post-processing, bias estimation, and the ELI workflow)
 
 Install with Bayesian support:
 ```bash
@@ -293,6 +313,16 @@ Output:
 - Overall performance comparison
 - Detailed results table
 
+### Example 3: Stress-testing heterogeneous error regimes
+
+Run all supported scenarios from the command line:
+
+```bash
+python examples/robust_collocation_scenarios.py
+```
+
+The script synthesises four distinct sensor constellations (independent errors, correlated errors, bias-dominated products, and correlation-first precipitation merging) and prints a diagnostic report with weight choices, Kling-Gupta efficiency, and truth correlations.
+
 ## ELI Application
 
 The Ecosystem Limitation Index (ELI) application provides a complete workflow for analyzing water vs. energy limitation in terrestrial ecosystems.
@@ -347,6 +377,12 @@ Run the test suite:
 
 ```bash
 pytest tests/test_collocation.py -v
+```
+
+Run the integration-style workflow checks (includes ETCC, EIVD, averaging, and rescaling assertions):
+
+```bash
+pytest tests/test_method_workflows.py -v
 ```
 
 Run tests with coverage:
