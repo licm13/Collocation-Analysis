@@ -33,6 +33,8 @@ from .tc import tc
 from .eivd import eivd
 from .ec import ec
 from .utils import mse_judge, kge_objfun
+from .covariance import build_sigma_from_collocation
+from .fuse import estimate_bias_from_collocation
 
 # Alias tc as tch (classic Three-Cornered Hat is mathematically TC)
 from .tc import tc as tch
@@ -102,6 +104,8 @@ __all__ = [
     # Utilities
     'mse_judge',
     'kge_objfun',
+    'build_sigma_from_collocation',
+    'estimate_bias_from_collocation',
     # Bayesian methods
     'BayesianTC',
     'bayesian_tc',
