@@ -14,6 +14,7 @@ Classical Methods:
 - TCH: Three-Cornered Hat (Classic, mathematically equivalent to TC)
 - EIVD: Extended Information Vector Dual (3-way, allows error cross-correlation)
 - EC: Extended Collocation (4-way quadruple collocation)
+- ETCC: Extended Triple Collocation for maximized Correlation (3-way, optimizes correlation)
 
 Simple Methods:
 - SimpleAverage: Simple and weighted averaging for quick data fusion
@@ -35,6 +36,9 @@ from .utils import mse_judge, kge_objfun
 
 # Alias tc as tch (classic Three-Cornered Hat is mathematically TC)
 from .tc import tc as tch
+
+# ETCC methods
+from .etcc import TripleCollocation, ETCC, SpatialMerging
 
 # Simple averaging methods
 from .simple_average import (
@@ -72,7 +76,7 @@ except ImportError:
     BayesianTCH = None
 
 
-__version__ = '1.3.0' # Incremented version
+__version__ = '1.4.0' # Incremented version for ETCC integration
 
 __all__ = [
     # Classical methods
@@ -82,6 +86,10 @@ __all__ = [
     'tch', # Added TCH alias
     'eivd',
     'ec',
+    # ETCC methods
+    'TripleCollocation',
+    'ETCC',
+    'SpatialMerging',
     # Simple methods
     'simple_average',
     'inverse_variance_weights',

@@ -22,6 +22,11 @@
 - **TC** (Triple Collocation，三路交叉定标): 经典3路交叉定标，假设误差独立
 - **EIVD** (Extended IVD，扩展IVD): 3路交叉定标，允许误差相关
 - **EC** (Extended Collocation，扩展交叉定标): 4路四元交叉定标，提供最优融合权重
+- **ETCC** (Extended Triple Collocation for Correlation，最大相关性扩展三路交叉定标): 3路交叉定标，优化与真值的相关性
+  - 最大化相关性而非最小化误差方差
+  - 使用穷举搜索寻找最优融合权重
+  - 基于Wei et al. (2023)的降水融合方法
+  - 适用于相关性比RMSE更重要的应用场景
 
 #### 贝叶斯方法
 
@@ -154,6 +159,37 @@ best = select_best_combination(results, criterion='min_fMSE')
 merged = best.weighted_result[0]
 ```
 
+### ETCC - 最大化相关性
+
+```python
+from collocation import ETCC, TripleCollocation
+
+# 三个降水产品
+precip1 = np.array([...])  # 产品1
+precip2 = np.array([...])  # 产品2
+precip3 = np.array([...])  # 产品3
+
+# 传统TC（最小化误差方差）
+tc_method = TripleCollocation()
+tc_merged = tc_method.merge(precip1, precip2, precip3)
+print("TC权重:", tc_method.weights)
+print("TC误差方差:", tc_method.error_variances)
+
+# ETCC（最大化与真值的相关性）
+etcc_method = ETCC(weight_increment=0.01)
+etcc_merged = etcc_method.merge(precip1, precip2, precip3)
+print("ETCC权重:", etcc_method.weights)
+print("ETCC最大相关性:", etcc_method.max_correlation)
+print("各产品与真值的相关性:", etcc_method.correlation_with_truth)
+
+# 对于网格化空间数据
+from collocation import SpatialMerging
+
+# 数据形状: (lat, lon, time)
+spatial_merger = SpatialMerging(method='etcc', weight_increment=0.01)
+merged_grid = spatial_merger.merge_gridded(grid1, grid2, grid3, axis=-1)
+```
+
 ### 简单平均方法
 
 ```python
@@ -229,16 +265,17 @@ else:
 
 ## 方法比较
 
-| 方法 | 产品数 | 误差相关 | 时间信息 | 不确定性 | 最适用于 |
-|------|--------|---------|---------|---------|---------|
-| **IVD** | 2 | 否 | 基于偏移 | 否 | 两个产品的最优权重融合 |
-| **IVS** | 2 | 否 | 滞后1 + Bootstrap | Bootstrap | 不确定性量化 (2路) |
-| **TC** | 3 | 零 (假设) | 否 | 否 | 标准3路验证 |
-| **EIVD** | 3 | 是 (估计) | 滞后1 | 否 | 有相关误差的产品 |
-| **EC** | 4 | 是 (估计) | 否 | 否 | 多传感器融合 |
-| **BTC** | 3+ | 是 (估计) | 时变 | 完整贝叶斯 | 复杂误差结构，时变 |
-| **BTCH** | 3 | 零 (假设) | 否 | 完整贝叶斯 | 常数误差的不确定性量化 |
-| **SimpleAverage** | 2+ | 不考虑 | 否 | 否 | 快速初步分析 |
+| 方法 | 产品数 | 误差相关 | 时间信息 | 不确定性 | 优化目标 | 最适用于 |
+|------|--------|---------|---------|---------|---------|---------|
+| **IVD** | 2 | 否 | 基于偏移 | 否 | 解析解 | 两个产品的最优权重融合 |
+| **IVS** | 2 | 否 | 滞后1 + Bootstrap | Bootstrap | 解析解 | 不确定性量化 (2路) |
+| **TC** | 3 | 零 (假设) | 否 | 否 | 最小RMSE | 标准3路验证 |
+| **ETCC** | 3 | 零 (假设) | 否 | 否 | 最大相关性 | 降水/优先考虑相关性的应用 |
+| **EIVD** | 3 | 是 (估计) | 滞后1 | 否 | 解析解 | 有相关误差的产品 |
+| **EC** | 4 | 是 (估计) | 否 | 否 | 解析解 | 多传感器融合 |
+| **BTC** | 3+ | 是 (估计) | 时变 | 完整贝叶斯 | MCMC | 复杂误差结构，时变 |
+| **BTCH** | 3 | 零 (假设) | 否 | 完整贝叶斯 | MCMC | 常数误差的不确定性量化 |
+| **SimpleAverage** | 2+ | 不考虑 | 否 | 否 | 算术平均 | 快速初步分析 |
 
 ## 完整示例
 
@@ -488,6 +525,73 @@ results = ec(qu)
 
 **参考文献:**
 > Gruber, A., et al. (2016). Estimating error cross-correlations in soil moisture data sets using extended collocation analysis. JGR: Atmospheres, 121(3), 1208-1219.
+
+### ETCC (最大相关性扩展三路交叉定标)
+
+```python
+from collocation import ETCC, TripleCollocation, SpatialMerging
+
+# 传统TC（最小化RMSE）
+tc = TripleCollocation()
+merged_tc = tc.merge(x, y, z)
+
+# ETCC（最大化相关性）
+etcc = ETCC(weight_increment=0.01, min_correlation=0.01)
+merged_etcc = etcc.merge(x, y, z)
+
+# 网格化数据的空间融合
+spatial = SpatialMerging(method='etcc', weight_increment=0.01)
+merged_grid = spatial.merge_gridded(x_grid, y_grid, z_grid, axis=-1)
+```
+
+**参数 (TripleCollocation):**
+- 无初始化参数
+
+**参数 (ETCC):**
+- `weight_increment`: 权重搜索步长（默认：0.01）
+  - 值越小搜索越精细但速度越慢
+  - 0.01对应约5,151个权重组合
+- `min_correlation`: 最小相关性阈值（默认：0.01）
+  - 防止数值不稳定
+
+**参数 (SpatialMerging):**
+- `method`: 'tc'或'etcc'（默认：'etcc'）
+- `**kwargs`: 传递给TC或ETCC的额外参数
+
+**方法:**
+```python
+# TripleCollocation
+merged = tc.merge(x, y, z)
+# 访问结果:
+tc.weights              # {'wx': float, 'wy': float, 'wz': float}
+tc.error_variances      # {'sigma2_x': float, 'sigma2_y': float, 'sigma2_z': float}
+
+# ETCC
+merged = etcc.merge(x, y, z)
+# 访问结果:
+etcc.weights                   # {'wx': float, 'wy': float, 'wz': float}
+etcc.max_correlation          # 达到的最大相关性
+etcc.correlation_with_truth   # {'rho_Rx': float, 'rho_Ry': float, 'rho_Rz': float}
+
+# SpatialMerging
+merged_grid = spatial.merge_gridded(x, y, z, axis=-1)
+```
+
+**输入格式:**
+- `x, y, z`: 点式融合的1D数组
+- 空间数据: 3D数组 (lat, lon, time)或(time, lat, lon)
+
+**返回:**
+- `merged`: 与输入形状相同的融合产品
+
+**主要区别:**
+- **TC**: 最小化误差方差（RMSE²），解析解
+- **ETCC**: 最大化与真值的相关性，穷举搜索
+- **使用TC的场景**: RMSE最小化是目标
+- **使用ETCC的场景**: 相关性更重要（如降水应用）
+
+**参考文献:**
+> Wei, M., et al. (2023). Ground validation of GPM IMERG precipitation products over Iran. *Geophysical Research Letters*, 50(18).
 
 ### BTC (贝叶斯三路交叉定标)
 
