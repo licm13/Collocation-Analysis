@@ -107,9 +107,26 @@ def ivd(dual: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         tri_X = X[:-i]
         tri_Y = Y[:-i]
 
-        # Calculate sum of correlation coefficients
-        corr_XI = np.corrcoef(tri_X, tri_I)[0, 1]
-        corr_YJ = np.corrcoef(tri_Y, tri_J)[0, 1]
+        # Calculate sum of correlation coefficients safely. When the
+        # lag produces very short series, np.corrcoef may emit warnings
+        # (degrees of freedom <= 0). Handle those cases and treat
+        # non-finite correlations as zero for the purpose of choosing an
+        # offset.
+        def _safe_corr(a: np.ndarray, b: np.ndarray) -> float:
+            if a.size < 2 or b.size < 2:
+                return 0.0
+            with np.errstate(invalid='ignore', divide='ignore'):
+                c = np.corrcoef(a, b)
+            try:
+                val = float(c[0, 1])
+            except Exception:
+                val = 0.0
+            if not np.isfinite(val):
+                return 0.0
+            return val
+
+        corr_XI = _safe_corr(tri_X, tri_I)
+        corr_YJ = _safe_corr(tri_Y, tri_J)
         judge = corr_XI + corr_YJ
 
         if judge > sum_R:
@@ -124,7 +141,26 @@ def ivd(dual: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     # Calculate IVD variances
     combin = np.column_stack([X, I, Y, J])
-    ExxT = np.cov(combin, rowvar=False)
+    # Protect against very small sample sizes or degenerate data which cause
+    # numpy.cov to emit RuntimeWarnings (degrees of freedom <= 0, divide by zero).
+    if combin.shape[0] < 2:
+        # Not enough data to compute covariance reliably
+        EeeT = np.full((2, 2), np.nan)
+        rho2 = np.full(2, np.nan)
+        u = np.full(2, np.nan)
+        return EeeT, rho2, u
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+        ExxT = np.cov(combin, rowvar=False)
+
+    # If covariance produced non-finite values (e.g., due to constant columns),
+    # return NaNs to signal insufficient variability instead of letting later
+    # operations produce warnings or exceptions.
+    if not np.all(np.isfinite(ExxT)):
+        EeeT = np.full((2, 2), np.nan)
+        rho2 = np.full(2, np.nan)
+        u = np.full(2, np.nan)
+        return EeeT, rho2, u
 
     # Initialize outputs
     u = np.zeros(2)

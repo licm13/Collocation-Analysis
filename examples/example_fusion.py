@@ -11,10 +11,18 @@ Demonstrates all fusion workflows:
 6. Publication-quality diagnostic plots
 """
 
+# Make repository root importable so this example can be run directly
+import sys
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
-from pathlib import Path
+# Path already imported above
 
 # Import fusion modules
 from collocation.fusion import (
@@ -154,8 +162,21 @@ def example_1_simple_ivw():
     # Print results
     print("\nFusion weights:")
     for model in result["weights"].coords["model"].values:
-        weight = float(result["weights"].sel(model=model).values)
-        print(f"  {model}: {weight:.3f}")
+        w = result["weights"].sel(model=model)
+        # If weight is scalar, print directly; if spatial/time-varying, print a mean summary
+        try:
+            size = int(w.size)
+        except Exception:
+            size = None
+
+        if size == 1:
+            weight = float(w.values)
+            print(f"  {model}: {weight:.3f}")
+        else:
+            mean_val = float(w.mean().values)
+            other_dims = [d for d in w.dims if d != "model"]
+            dim_note = ",".join(other_dims) if other_dims else "multi"
+            print(f"  {model}: {mean_val:.3f} (mean over {dim_note})")
 
     # Compute RMSE
     rmse_fused = np.sqrt(np.mean((result["fused"] - X_truth) ** 2))
@@ -196,8 +217,20 @@ def example_2_gls_fusion():
 
     print("\nGLS Fusion weights:")
     for model in result["weights"].coords["model"].values:
-        weight = float(result["weights"].sel(model=model).values)
-        print(f"  {model}: {weight:.3f}")
+        w = result["weights"].sel(model=model)
+        try:
+            size = int(w.size)
+        except Exception:
+            size = None
+
+        if size == 1:
+            weight = float(w.values)
+            print(f"  {model}: {weight:.3f}")
+        else:
+            mean_val = float(w.mean().values)
+            other_dims = [d for d in w.dims if d != "model"]
+            dim_note = ",".join(other_dims) if other_dims else "multi"
+            print(f"  {model}: {mean_val:.3f} (mean over {dim_note})")
 
     # Variance reduction
     print("\nUncertainty:")
@@ -208,9 +241,27 @@ def example_2_gls_fusion():
     if "diagnostics" in result:
         diag = result["diagnostics"]
         print(f"\nDiagnostics:")
-        print(f"  Effective N: {float(diag['effective_n']):.2f}")
-        print(f"  Weight entropy: {float(diag['entropy']):.3f}")
-        print(f"  Concentration (HHI): {float(diag['concentration']):.3f}")
+        def _fmt_stat(x, fmt="{:.2f}"):
+            try:
+                size = int(x.size)
+            except Exception:
+                size = None
+
+            if size == 1:
+                return fmt.format(float(x))
+            else:
+                # Return mean over whatever dimensions are present
+                try:
+                    mean_val = float(x.mean())
+                except Exception:
+                    mean_val = float(np.array(x).mean())
+                dims = getattr(x, "dims", None)
+                dim_note = ",".join(dims) if dims else "multi"
+                return f"{fmt.format(mean_val)} (mean over {dim_note})"
+
+        print(f"  Effective N: {_fmt_stat(diag['effective_n'], '{:.2f}')}")
+        print(f"  Weight entropy: {_fmt_stat(diag['entropy'], '{:.3f}')}")
+        print(f"  Concentration (HHI): {_fmt_stat(diag['concentration'], '{:.3f}')}")
 
     return result, X, X_truth
 
@@ -256,7 +307,16 @@ def example_3_constrained_qp():
 
     print("\nWeights (with bounds):")
     for i, model in enumerate(result["weights"].coords["model"].values):
-        print(f"  {model}: {weights_clipped[i]:.3f}")
+        wval = weights_clipped[i]
+        try:
+            # scalar-like
+            if np.asarray(wval).size == 1:
+                print(f"  {model}: {float(wval):.3f}")
+            else:
+                mean_w = float(np.nanmean(wval))
+                print(f"  {model}: {mean_w:.3f} (mean over spatial dims)")
+        except Exception:
+            print(f"  {model}: {wval}")
 
     return result, X, X_truth
 
@@ -323,15 +383,33 @@ def create_diagnostic_plots(result, X, X_truth, output_dir="fusion_plots"):
     fig, axes = plt.subplots(1, 3, figsize=(8, 2.5))
     for i, model in enumerate(result["weights"].coords["model"].values):
         w = result["weights"].sel(model=model)
-        if "lat" in w.dims:
-            # Spatial weights
-            im = axes[i].imshow(w.mean(dim="time"), cmap="viridis", vmin=0, vmax=1)
+        try:
+            size = int(w.size)
+        except Exception:
+            size = None
+
+        if "lat" in w.dims and "lon" in w.dims:
+            # Spatial weights: reduce all non-spatial dims to produce a 2D map
+            reduce_dims = [d for d in w.dims if d not in ("lat", "lon")]
+            if reduce_dims:
+                img = w.mean(dim=reduce_dims)
+            else:
+                img = w
+            im = axes[i].imshow(img, cmap="viridis", vmin=0, vmax=1)
             axes[i].set_title(f"{model} weights")
-        else:
-            # Scalar weights
+        elif size == 1:
+            # Scalar weight
             axes[i].bar([0], [float(w.values)], color="steelblue")
             axes[i].set_ylim(0, 1)
             axes[i].set_title(f"{model}")
+        else:
+            # Multi-dimensional but no lat dim: show mean across remaining dims
+            mean_val = float(w.mean().values)
+            other_dims = [d for d in w.dims if d != "model"]
+            dim_note = ",".join(other_dims) if other_dims else "multi"
+            axes[i].bar([0], [mean_val], color="steelblue")
+            axes[i].set_ylim(0, 1)
+            axes[i].set_title(f"{model} (mean over {dim_note})")
         axes[i].set_ylabel("Weight")
 
     plt.tight_layout()

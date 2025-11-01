@@ -6,12 +6,12 @@ import sys
 matplotlib = pytest.importorskip("matplotlib")
 xr = pytest.importorskip("xarray")
 
-from examples.covariance_method_comparison import run_covariance_comparison
-
 # Ensure repository root is on sys.path so 'examples' and 'collocation' are importable.
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+
+from examples.covariance_method_comparison import run_covariance_comparison
 
 
 def test_covariance_comparison_example(tmp_path):

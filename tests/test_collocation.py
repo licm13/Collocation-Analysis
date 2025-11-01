@@ -162,7 +162,9 @@ class TestTC:
     def test_tc_insufficient_data(self):
         """Test TC with insufficient data."""
         tri = np.random.randn(50, 3)  # Less than 100 samples
-        EeeT, SNR, rho2, fMSE = tc(tri)
+        # TC emits a UserWarning for small sample sizes; assert it is raised
+        with pytest.warns(UserWarning, match=r"Sample size \(50\) is less than recommended"):
+            EeeT, SNR, rho2, fMSE = tc(tri)
 
         # Should return default values
         assert np.allclose(EeeT, 0.01 * np.eye(3))
@@ -211,7 +213,9 @@ class TestEIVD:
     def test_eivd_insufficient_data(self):
         """Test EIVD with insufficient data."""
         tri = np.array([[1, 2, 3]])  # Only 1 sample
-        EeeT, SNR, rho2, fMSE, L = eivd(tri)
+        # EIVD warns when data is insufficient; assert the warning
+        with pytest.warns(UserWarning, match=r"Insufficient data for EIVD analysis"):
+            EeeT, SNR, rho2, fMSE, L = eivd(tri)
 
         # Should return zero arrays
         assert np.all(EeeT == 0)

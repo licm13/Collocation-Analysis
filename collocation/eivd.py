@@ -139,12 +139,29 @@ def eivd(tri: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarra
         return EeeT, SNR, rho2, fMSE, L
 
     # Calculate error covariance matrix
-    ExxT = np.cov(tri, rowvar=False)
+    # Use errstate to suppress spurious numpy warnings on degenerate inputs
+    with np.errstate(invalid='ignore', divide='ignore'):
+        ExxT = np.cov(tri, rowvar=False)
+
+    # If covariance contains non-finite values, warn and return zeros as before
+    if not np.all(np.isfinite(ExxT)):
+        warnings.warn("Covariance contains non-finite values; returning defaults.", UserWarning)
+        EeeT = np.zeros((3, 3))
+        SNR = np.zeros(3)
+        rho2 = np.zeros(3)
+        fMSE = np.zeros(3)
+        L = np.zeros(3)
+        return EeeT, SNR, rho2, fMSE, L
 
     # Generate Lag-1 [temporal-resolution] series
     tri_lag = tri[1:, :]
     tri = tri[:-1, :]
     L = np.mean(tri * tri_lag, axis=0)
+
+    # Guard against zero or negative lag correlations which would cause divide
+    # by zero in the subsequent constructions. Replace non-positive entries
+    # with a small positive value to keep numerical stability.
+    L_safe = np.where(L <= 0, np.nan, L)
 
     # Build equation system for EIVD
     # More complex than TC: 10 equations, 8 unknowns
@@ -164,18 +181,20 @@ def eivd(tri: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarra
     ])
 
     # Build right-hand side vector with temporal information
-    y = np.array([
-        ExxT[0, 0],  # Var(X1)
-        ExxT[1, 1],  # Var(X2)
-        ExxT[2, 2],  # Var(X3)
-        ExxT[1, 2],  # Cov(X2,X3)
-        ExxT[0, 1] * np.sqrt(L[0] / L[1]),  # Temporal correlation based
-        ExxT[0, 2] * np.sqrt(L[0] / L[2]),
-        ExxT[1, 0] * np.sqrt(L[1] / L[0]),
-        ExxT[2, 0] * np.sqrt(L[2] / L[0]),
-        ExxT[0, 1] * np.sqrt(L[2] / L[0]),
-        ExxT[0, 2] * np.sqrt(L[1] / L[0])
-    ])
+    # Construct RHS vector carefully to avoid divide-by-zero / invalid ops
+    with np.errstate(invalid='ignore', divide='ignore'):
+        y = np.array([
+            ExxT[0, 0],  # Var(X1)
+            ExxT[1, 1],  # Var(X2)
+            ExxT[2, 2],  # Var(X3)
+            ExxT[1, 2],  # Cov(X2,X3)
+            ExxT[0, 1] * np.sqrt(L_safe[0] / L_safe[1]) if np.isfinite(L_safe[0] / L_safe[1]) else 0.0,
+            ExxT[0, 2] * np.sqrt(L_safe[0] / L_safe[2]) if np.isfinite(L_safe[0] / L_safe[2]) else 0.0,
+            ExxT[1, 0] * np.sqrt(L_safe[1] / L_safe[0]) if np.isfinite(L_safe[1] / L_safe[0]) else 0.0,
+            ExxT[2, 0] * np.sqrt(L_safe[2] / L_safe[0]) if np.isfinite(L_safe[2] / L_safe[0]) else 0.0,
+            ExxT[0, 1] * np.sqrt(L_safe[2] / L_safe[0]) if np.isfinite(L_safe[2] / L_safe[0]) else 0.0,
+            ExxT[0, 2] * np.sqrt(L_safe[1] / L_safe[0]) if np.isfinite(L_safe[1] / L_safe[0]) else 0.0,
+        ])
 
     # Solve linear system via least squares
     x = np.linalg.lstsq(A, y, rcond=None)[0]

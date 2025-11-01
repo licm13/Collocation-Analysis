@@ -1,3 +1,6 @@
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 """
 Comprehensive test suite for fusion module.
 
@@ -14,6 +17,7 @@ Tests all components:
 import numpy as np
 import pytest
 import xarray as xr
+import importlib.util
 
 # Import fusion modules
 from collocation.fusion import (
@@ -91,7 +95,8 @@ class TestWeightSolvers:
         assert np.allclose(weights.sum(), 1.0)
 
     @pytest.mark.skipif(
-        True, reason="quadprog not in core dependencies"
+        importlib.util.find_spec("quadprog") is None,
+        reason="quadprog not installed; install optional dependency to run QP tests",
     )
     def test_qp_with_bounds(self):
         """Test constrained QP with bounds."""

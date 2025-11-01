@@ -29,17 +29,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from collocation import BAYESIAN_TCH_AVAILABLE
 
-if not BAYESIAN_TCH_AVAILABLE:
-    print("="*70)
-    print("ERROR: PyMC3 not available!")
-    print("="*70)
-    print("Bayesian Three-Cornered Hat requires PyMC3.")
-    print("Install with:")
-    print("  pip install pymc3==3.11.5 theano-pymc")
-    print("="*70)
-    sys.exit(1)
+from collocation import tc
 
-from collocation import BayesianTCH, tc
+# If PyMC3 is unavailable, we'll fall back to a non-Bayesian bootstrap
+# approximation so the example can still run and illustrate results.
+USE_BAYES = bool(BAYESIAN_TCH_AVAILABLE)
+if not USE_BAYES:
+    print("=" * 70)
+    print("WARNING: PyMC3 not available — running non-Bayesian bootstrap fallback.")
+    print("To enable full Bayesian inference, install PyMC3:")
+    print("  pip install pymc3==3.11.5 theano-pymc")
+    print("=" * 70)
+
+try:
+    from collocation import BayesianTCH
+except Exception:
+    BayesianTCH = None
 
 # ============================================================================
 # Configuration
@@ -105,29 +110,56 @@ for i, rmse in enumerate(rmse_tc):
 # Bayesian Three-Cornered Hat
 # ============================================================================
 
-print("\n3. Running Bayesian Three-Cornered Hat (BTCH)...")
+print("\n3. Running Bayesian Three-Cornered Hat (BTCH) or fallback...")
 print("-" * 70)
-print("This will take a few minutes...")
-print(f"MCMC iterations: {n_mcmc_iter}")
-print(f"ADVI iterations: {n_advi_iter}")
-print(f"Chains: {n_chains}")
 
-# Initialize BTCH
-btch = BayesianTCH(data)
+if USE_BAYES and BayesianTCH is not None:
+    print("This will take a few minutes...")
+    print(f"MCMC iterations: {n_mcmc_iter}")
+    print(f"ADVI iterations: {n_advi_iter}")
+    print(f"Chains: {n_chains}")
 
-# Run inference
-trace = btch.run_inference(
-    niter=n_mcmc_iter,
-    nadvi=n_advi_iter,
-    nchains=n_chains,
-    seed=42
-)
+    # Initialize BTCH
+    btch = BayesianTCH(data)
 
-# Get results
-rmse_mean, rmse_std, rmse_quantiles = btch.get_error_estimates()
+    # Run inference
+    trace = btch.run_inference(
+        niter=n_mcmc_iter,
+        nadvi=n_advi_iter,
+        nchains=n_chains,
+        seed=42,
+    )
 
-# Print summary
-btch.summary()
+    # Get results
+    rmse_mean, rmse_std, rmse_quantiles = btch.get_error_estimates()
+
+    # Print summary
+    btch.summary()
+    posterior_samples = None
+else:
+    # Non-Bayesian fallback: estimate uncertainty using simple bootstrap of TC
+    print("PyMC3 not available — using bootstrap approximation for uncertainty (non-Bayesian).")
+    B = 1000  # bootstrap replicates
+    rng = np.random.RandomState(42)
+    boot_rmse = np.zeros((B, data.shape[0]))
+    tri = np.column_stack(products)
+    n = tri.shape[0]
+    print(f"Running {B} bootstrap replicates...")
+    for b in range(B):
+        idx = rng.randint(0, n, size=n)
+        sample = tri[idx, :]
+        try:
+            EeeT_b, _, _, _ = tc(sample)
+            rmse_b = np.sqrt(np.diag(EeeT_b))
+        except Exception:
+            # Fallback to sample RMSE if tc fails
+            rmse_b = np.sqrt(np.mean((sample - sample.mean(axis=0)) ** 2, axis=0))
+        boot_rmse[b, :] = rmse_b
+
+    rmse_mean = boot_rmse.mean(axis=0)
+    rmse_std = boot_rmse.std(axis=0)
+    rmse_quantiles = np.percentile(boot_rmse, [2.5, 50, 97.5], axis=0).T
+    posterior_samples = boot_rmse
 
 # ============================================================================
 # Compare Results
@@ -202,7 +234,11 @@ colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
 
 for i in range(3):
     # Get posterior samples
-    samples = trace.get_values('sigmap')[:, i]
+    if USE_BAYES and BayesianTCH is not None:
+        samples = trace.get_values('sigmap')[:, i]
+    else:
+        # use bootstrap samples as a proxy for posterior
+        samples = posterior_samples[:, i]
 
     # Plot histogram
     ax3.hist(samples, bins=50, alpha=0.5, color=colors[i],
@@ -246,10 +282,14 @@ ax4.grid(True, alpha=0.3, axis='y')
 
 plt.tight_layout()
 
-# Save figure
-output_dir = os.path.join(os.path.dirname(__file__), '..', 'docs')
+# Save figure(s) in a `figures/` folder next to this script.
+# Filename is derived from the script name so it relates to the example file.
+script_dir = os.path.dirname(os.path.abspath(__file__))
+script_base = os.path.splitext(os.path.basename(__file__))[0]
+output_dir = os.path.join(script_dir, 'figures')
 os.makedirs(output_dir, exist_ok=True)
-output_path = os.path.join(output_dir, 'bayesian_tch_example.png')
+output_filename = f"{script_base}.png"
+output_path = os.path.join(output_dir, output_filename)
 plt.savefig(output_path, dpi=300, bbox_inches='tight')
 print(f"\nFigure saved to: {output_path}")
 

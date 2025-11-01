@@ -57,12 +57,12 @@ def _simulate_collocation(config: ScenarioConfig) -> tuple[xr.Dataset, np.ndarra
     cov_est = np.cov(demeaned, rowvar=False, ddof=1)
     var_est = np.diag(cov_est)
 
-    coords = {"model": list(MODEL_NAMES)}
+    coords = {"model": list(MODEL_NAMES), "model_2": list(MODEL_NAMES)}
     dataset = xr.Dataset(
         {
-            "cov": xr.DataArray(cov_est, dims=("model", "model"), coords=coords),
-            "var": xr.DataArray(var_est, dims=("model",), coords=coords),
-            "bias": xr.DataArray(bias_est, dims=("model",), coords=coords),
+            "cov": xr.DataArray(cov_est, dims=("model", "model_2"), coords=coords),
+            "var": xr.DataArray(var_est, dims=("model",), coords={"model": list(MODEL_NAMES)}),
+            "bias": xr.DataArray(bias_est, dims=("model",), coords={"model": list(MODEL_NAMES)}),
         }
     )
     return dataset, truth, predictions

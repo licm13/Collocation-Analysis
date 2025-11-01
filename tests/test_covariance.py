@@ -48,8 +48,8 @@ def _make_dataset():
     var = xr.DataArray([1.0, 2.0, 3.0], dims=("model",), coords={"model": models})
     cov = xr.DataArray(
         [[1.0, 0.1, 0.2], [0.1, 2.0, 0.3], [0.2, 0.3, 3.0]],
-        dims=("model", "model"),
-        coords={"model": models},
+        dims=("model", "model_2"),
+        coords={"model": models, "model_2": models},
     )
     bias = xr.DataArray([0.1, -0.2, 0.0], dims=("model",), coords={"model": models})
     return xr.Dataset({"var": var, "cov": cov, "bias": bias})
@@ -59,7 +59,7 @@ def test_build_sigma_from_collocation_defaults():
     ds = _make_dataset()
     sigma = build_sigma_from_collocation(ds)
     np.testing.assert_allclose(sigma.values, ds["cov"].values)
-    assert sigma.dims == ("model", "model")
+    assert sigma.dims == ("model", "model_2")
     # Save a diagnostic figure
     _save_sigma_fig(sigma, "default_covariance")
 

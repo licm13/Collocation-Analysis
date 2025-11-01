@@ -51,11 +51,13 @@ from .constraints import (
     BoundsConstraint,
     EnergyBalanceConstraint,
     ETConstraint,
+    combine_constraints,
 )
 from .uncertainty import (
     propagate_variance,
     compute_effective_n,
     bootstrap_uncertainty,
+    weight_entropy,
 )
 from .robust import (
     estimate_mse_robust,
@@ -89,6 +91,7 @@ __all__ = [
     "propagate_variance",
     "compute_effective_n",
     "bootstrap_uncertainty",
+    "weight_entropy",
     # Robust
     "estimate_mse_robust",
     "huber_loss",

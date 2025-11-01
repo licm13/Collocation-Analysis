@@ -99,8 +99,14 @@ def estimate_mse(
 
         mse = apply_moving_window(se, window, reduction="mean")
     else:
-        # Global average over non-model dimensions
-        avg_dims = [d for d in se.dims if d != "model"]
+        # Global average over sampling dimensions.
+        # By default, average over the 'time' dimension if present to preserve
+        # spatial variability (e.g., 'lat', 'lon'). Otherwise average over
+        # all non-model dimensions.
+        if "time" in se.dims:
+            avg_dims = ["time"]
+        else:
+            avg_dims = [d for d in se.dims if d != "model"]
         if robust:
             # Use robust estimator from fusion.robust
             from .robust import estimate_mse_robust
@@ -334,12 +340,30 @@ def build_sigma(
         )
 
     else:
-        # Use provided cross-covariance
-        # Replace diagonal with MSE values
-        Sigma = cross.copy()
-        for i, m in enumerate(model_coords):
-            # Set diagonal
-            Sigma.loc[{"model": m, "model_2": m}] = mse.sel(model=m)
+        # Use provided cross-covariance. Construct a full Sigma by
+        # broadcasting the provided cross matrix to any batch dims present
+        # in `mse` and overwriting the diagonal with per-model MSE values.
+        batch_dims = [d for d in mse.dims if d != "model"]
+        batch_shape = mse.shape[:-1]
+
+        # Use broadcast helper to align/reindex and broadcast
+        from .broadcast import prepare_cross_and_mse_for_sigma
+
+        cross_np, mse_np, batch_dims, batch_coords = prepare_cross_and_mse_for_sigma(
+            cross, mse, model_coords
+        )
+
+        all_dims = (*batch_dims, "model", "model_2") if batch_dims else ("model", "model_2")
+
+        Sigma = xr.DataArray(
+            cross_np,
+            dims=all_dims,
+            coords={**batch_coords, "model": model_coords, "model_2": model_coords},
+        )
+
+        # overwrite diagonal entries with mse
+        for k in range(K):
+            Sigma.data[..., k, k] = mse_np[..., k]
 
     # Apply shrinkage
     Sigma_shrunk = _apply_shrinkage_xr(Sigma, method=shrinkage, lam=lam)
