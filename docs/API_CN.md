@@ -10,6 +10,7 @@
    - [TC (三路交叉定标)](#tc-三路交叉定标)
    - [EIVD (扩展IVD)](#eivd-扩展ivd)
    - [EC (扩展交叉定标)](#ec-扩展交叉定标)
+   - [ETCC (最大相关性扩展三路交叉定标)](#etcc-最大相关性扩展三路交叉定标)
 2. [简单方法](#简单方法)
    - [SimpleAverage (简单平均)](#simpleaverage-简单平均)
 3. [贝叶斯方法](#贝叶斯方法)
@@ -321,7 +322,145 @@ print(f"融合权重: {best.re_weight}")
 merged = best.weighted_result[0]
 ```
 
-**辅助函数:**
+**参考文献:**
+> Gruber, A., et al. (2016). Estimating error cross-correlations in soil moisture data sets using extended collocation analysis. *JGR: Atmospheres*, 121(3), 1208-1219.
+
+---
+
+### ETCC (最大相关性扩展三路交叉定标)
+
+**类定义:**
+```python
+collocation.TripleCollocation()
+collocation.ETCC(weight_increment=0.01, min_correlation=0.01)
+collocation.SpatialMerging(method='etcc', **kwargs)
+```
+
+**描述:**
+
+ETCC是三路交叉定标的扩展方法，通过最大化融合产品与未知真值的相关性来优化融合权重，而不是传统TC的最小化误差方差。特别适用于降水数据融合等优先考虑相关性的应用。
+
+包含三个类：
+- **TripleCollocation**: 传统TC方法（最小化RMSE）
+- **ETCC**: 扩展TC方法（最大化相关性）
+- **SpatialMerging**: 网格化空间数据的融合包装器
+
+**TripleCollocation 参数:**
+
+无初始化参数。
+
+**ETCC 参数:**
+
+- **weight_increment** : `float`, 默认 0.01
+  - 权重搜索的步长
+  - 值越小搜索越精细，但计算越慢
+  - 0.01对应约5,151个权重组合
+
+- **min_correlation** : `float`, 默认 0.01
+  - 最小相关性阈值，用于防止数值不稳定
+
+**SpatialMerging 参数:**
+
+- **method** : `str`, 'tc' 或 'etcc', 默认 'etcc'
+  - 使用的融合方法
+
+- **\*\*kwargs** : 传递给TC或ETCC的其他参数
+
+**方法:**
+
+**TripleCollocation.merge(x, y, z)**
+- **x, y, z** : `np.ndarray`, shape (n,)
+  - 三个输入产品的1D数组
+- **返回** : `np.ndarray`, 融合产品
+- **属性** :
+  - `weights`: dict, 包含{'wx', 'wy', 'wz'}
+  - `error_variances`: dict, 包含{'sigma2_x', 'sigma2_y', 'sigma2_z'}
+
+**ETCC.merge(x, y, z)**
+- **x, y, z** : `np.ndarray`, shape (n,)
+  - 三个输入产品的1D数组
+- **返回** : `np.ndarray`, 融合产品
+- **属性** :
+  - `weights`: dict, 包含{'wx', 'wy', 'wz'}
+  - `max_correlation`: float, 达到的最大相关性
+  - `correlation_with_truth`: dict, 包含{'rho_Rx', 'rho_Ry', 'rho_Rz'}
+
+**SpatialMerging.merge_gridded(x, y, z, axis=-1)**
+- **x, y, z** : `np.ndarray`, shape (lat, lon, time) 或 (time, lat, lon)
+  - 三个网格化输入产品
+- **axis** : `int`, 默认 -1
+  - 时间轴的位置
+- **返回** : `np.ndarray`, 融合的网格化产品
+
+**示例:**
+
+```python
+from collocation import ETCC, TripleCollocation, SpatialMerging
+import numpy as np
+
+# 生成示例降水数据
+n = 500
+truth = np.random.lognormal(1.5, 0.8, n)
+precip1 = truth * 0.95 + np.random.normal(0, 1.5, n)
+precip2 = truth * 1.10 + np.random.normal(0, 1.0, n)
+precip3 = truth * 1.05 + np.random.normal(0, 2.0, n)
+
+# 方法1: 传统TC（最小化RMSE）
+tc = TripleCollocation()
+tc_merged = tc.merge(precip1, precip2, precip3)
+print("TC权重:", tc.weights)
+print("TC误差方差:", tc.error_variances)
+
+# 方法2: ETCC（最大化相关性）
+etcc = ETCC(weight_increment=0.01)
+etcc_merged = etcc.merge(precip1, precip2, precip3)
+print("\nETCC权重:", etcc.weights)
+print("ETCC最大相关性:", etcc.max_correlation)
+print("各产品与真值的相关性:", etcc.correlation_with_truth)
+
+# 比较结果
+from collocation.utils import calculate_all_metrics
+tc_metrics = calculate_all_metrics(truth, tc_merged)
+etcc_metrics = calculate_all_metrics(truth, etcc_merged)
+
+print(f"\nTC: R={tc_metrics['r']:.4f}, RMSE={tc_metrics['rmse']:.4f}")
+print(f"ETCC: R={etcc_metrics['r']:.4f}, RMSE={etcc_metrics['rmse']:.4f}")
+
+# 对于网格化数据
+lat, lon, time = 50, 100, 365
+grid1 = np.random.randn(lat, lon, time)
+grid2 = np.random.randn(lat, lon, time)
+grid3 = np.random.randn(lat, lon, time)
+
+# 使用空间融合
+spatial = SpatialMerging(method='etcc', weight_increment=0.01)
+merged_grid = spatial.merge_gridded(grid1, grid2, grid3, axis=-1)
+print(f"\n融合网格形状: {merged_grid.shape}")
+```
+
+**主要区别:**
+
+| 特性 | TripleCollocation (TC) | ETCC |
+|------|----------------------|------|
+| 优化目标 | 最小化误差方差（RMSE²） | 最大化相关性 |
+| 计算方法 | 解析解 | 穷举搜索 |
+| 计算速度 | 快 | 中等 |
+| 最适用于 | 最小化RMSE | 最大化相关性（如降水） |
+
+**注意事项:**
+
+1. ETCC的计算时间取决于`weight_increment`：
+   - 0.01: ~5,151次评估，适合大多数应用
+   - 0.001: ~515,151次评估，非常精确但慢
+
+2. 两种方法给出的权重通常不同，因为优化目标不同
+
+3. 对于降水等应用，ETCC通常提供更好的相关性，即使RMSE可能稍高
+
+**参考文献:**
+> Wei, M., et al. (2023). Ground validation of GPM IMERG precipitation products over Iran. *Geophysical Research Letters*, 50(18).
+
+---
 
 ```python
 # 按不同标准选择最佳组合

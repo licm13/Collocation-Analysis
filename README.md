@@ -20,6 +20,11 @@ Collocation analysis methods enable quantification of errors in multiple dataset
 - **TC** (Triple Collocation): Classic 3-way collocation assuming independent errors
 - **EIVD** (Extended IVD): 3-way collocation allowing error cross-correlation
 - **EC** (Extended Collocation): 4-way quadruple collocation with optimal merging weights
+- **ETCC** (Extended Triple Collocation for Correlation): 3-way collocation optimized for maximum correlation with truth
+  - Maximizes correlation instead of minimizing error variance
+  - Uses exhaustive weight search for optimal fusion
+  - Based on Wei et al. (2023) for precipitation merging
+  - Ideal for applications where correlation is more important than RMSE
 
 #### Bayesian Methods
 
@@ -144,6 +149,37 @@ best = select_best_combination(results, criterion='min_fMSE')
 merged = best.weighted_result[0]
 ```
 
+### ETCC for Maximum Correlation
+
+```python
+from collocation import ETCC, TripleCollocation
+
+# Three precipitation products
+precip1 = np.array([...])  # Product 1
+precip2 = np.array([...])  # Product 2
+precip3 = np.array([...])  # Product 3
+
+# Traditional TC (minimizes error variance)
+tc_method = TripleCollocation()
+tc_merged = tc_method.merge(precip1, precip2, precip3)
+print("TC weights:", tc_method.weights)
+print("TC error variances:", tc_method.error_variances)
+
+# ETCC (maximizes correlation with truth)
+etcc_method = ETCC(weight_increment=0.01)
+etcc_merged = etcc_method.merge(precip1, precip2, precip3)
+print("ETCC weights:", etcc_method.weights)
+print("ETCC max correlation:", etcc_method.max_correlation)
+print("Correlations with truth:", etcc_method.correlation_with_truth)
+
+# For gridded spatial data
+from collocation import SpatialMerging
+
+# Data shape: (lat, lon, time)
+spatial_merger = SpatialMerging(method='etcc', weight_increment=0.01)
+merged_grid = spatial_merger.merge_gridded(grid1, grid2, grid3, axis=-1)
+```
+
 ### Bayesian Methods (Advanced)
 
 #### Bayesian Triple Collocation (Time-Varying Errors)
@@ -204,15 +240,16 @@ else:
 
 ## Method Comparison
 
-| Method | # Products | Error Correlation | Temporal Info | Uncertainty | Best For |
-|--------|-----------|-------------------|---------------|-------------|----------|
-| **IVD** | 2 | No | Offset-based | No | Fusing two products with optimal weights |
-| **IVS** | 2 | No | Lag-1 + Bootstrap | Bootstrap | Uncertainty quantification (2-way) |
-| **TC** | 3 | Zero (assumed) | No | No | Standard 3-way validation |
-| **EIVD** | 3 | Yes (estimated) | Lag-1 | No | Products with correlated errors |
-| **EC** | 4 | Yes (estimated) | No | No | Multi-sensor fusion |
-| **BTC** | 3+ | Yes (estimated) | Time-varying | Full Bayesian | Complex error structures, time-varying |
-| **BTCH** | 3 | Zero (assumed) | No | Full Bayesian | Constant errors with uncertainty quantification |
+| Method | # Products | Error Correlation | Temporal Info | Uncertainty | Optimization | Best For |
+|--------|-----------|-------------------|---------------|-------------|--------------|----------|
+| **IVD** | 2 | No | Offset-based | No | Analytical | Fusing two products with optimal weights |
+| **IVS** | 2 | No | Lag-1 + Bootstrap | Bootstrap | Analytical | Uncertainty quantification (2-way) |
+| **TC** | 3 | Zero (assumed) | No | No | Min RMSE | Standard 3-way validation |
+| **ETCC** | 3 | Zero (assumed) | No | No | Max Correlation | Precipitation/applications prioritizing correlation |
+| **EIVD** | 3 | Yes (estimated) | Lag-1 | No | Analytical | Products with correlated errors |
+| **EC** | 4 | Yes (estimated) | No | No | Analytical | Multi-sensor fusion |
+| **BTC** | 3+ | Yes (estimated) | Time-varying | Full Bayesian | MCMC | Complex error structures, time-varying |
+| **BTCH** | 3 | Zero (assumed) | No | Full Bayesian | MCMC | Constant errors with uncertainty quantification |
 
 ## Comprehensive Examples
 
@@ -425,6 +462,73 @@ Each result contains:
 
 **Reference:**
 > Gruber, A., et al. (2016). Estimating error cross-correlations in soil moisture data sets using extended collocation analysis. JGR: Atmospheres, 121(3), 1208-1219.
+
+### ETCC (Extended Triple Collocation for Correlation)
+
+```python
+from collocation import ETCC, TripleCollocation, SpatialMerging
+
+# Traditional TC (minimizes RMSE)
+tc = TripleCollocation()
+merged_tc = tc.merge(x, y, z)
+
+# ETCC (maximizes correlation)
+etcc = ETCC(weight_increment=0.01, min_correlation=0.01)
+merged_etcc = etcc.merge(x, y, z)
+
+# Spatial merging for gridded data
+spatial = SpatialMerging(method='etcc', weight_increment=0.01)
+merged_grid = spatial.merge_gridded(x_grid, y_grid, z_grid, axis=-1)
+```
+
+**Parameters (TripleCollocation):**
+- No initialization parameters
+
+**Parameters (ETCC):**
+- `weight_increment`: Step size for weight search (default: 0.01)
+  - Smaller values = finer search but slower
+  - 0.01 gives ~5,151 weight combinations
+- `min_correlation`: Minimum correlation threshold (default: 0.01)
+  - Prevents numerical instabilities
+
+**Parameters (SpatialMerging):**
+- `method`: 'tc' or 'etcc' (default: 'etcc')
+- `**kwargs`: Additional parameters passed to TC or ETCC
+
+**Methods:**
+```python
+# For TripleCollocation
+merged = tc.merge(x, y, z)
+# Access results:
+tc.weights              # {'wx': float, 'wy': float, 'wz': float}
+tc.error_variances      # {'sigma2_x': float, 'sigma2_y': float, 'sigma2_z': float}
+
+# For ETCC
+merged = etcc.merge(x, y, z)
+# Access results:
+etcc.weights                   # {'wx': float, 'wy': float, 'wz': float}
+etcc.max_correlation          # Maximum correlation achieved
+etcc.correlation_with_truth   # {'rho_Rx': float, 'rho_Ry': float, 'rho_Rz': float}
+
+# For SpatialMerging
+merged_grid = spatial.merge_gridded(x, y, z, axis=-1)
+```
+
+**Input Format:**
+- `x, y, z`: 1D arrays for point-wise merging
+- For spatial: 3D arrays (lat, lon, time) or (time, lat, lon)
+
+**Returns:**
+- `merged`: Merged product with same shape as inputs
+
+**Key Differences:**
+- **TC**: Minimizes error variance (RMSE²), analytical solution
+- **ETCC**: Maximizes correlation with truth, exhaustive search
+- **Use TC when**: RMSE minimization is the goal
+- **Use ETCC when**: Correlation maximization is more important (e.g., precipitation)
+
+**Reference:**
+> Wei, M., et al. (2023). Ground validation of GPM IMERG precipitation products over Iran. *Geophysical Research Letters*, 50(18).
 
 ### BTC (Bayesian Triple Collocation)
 
@@ -647,6 +751,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 5. Gruber, A., Su, C. H., Zwieback, S., Crow, W., Dorigo, W., & Wagner, W. (2016). Recent advances in (soil moisture) triple collocation analysis. *International Journal of Applied Earth Observation and Geoinformation*, 45, 200-211.
 
 6. Gupta, H. V., Kling, H., Yilmaz, K. K., & Martinez, G. F. (2009). Decomposition of the mean squared error and NSE performance criteria: Implications for improving hydrological modelling. *Journal of Hydrology*, 377(1-2), 80-91.
+
+7. Wei, M., Qiao, B., Zhao, J., & Zuo, X. (2023). Ground validation of GPM IMERG precipitation products over Iran. *Geophysical Research Letters*, 50(18).
 
 ## Contact
 
