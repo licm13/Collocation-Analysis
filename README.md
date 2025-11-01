@@ -30,6 +30,13 @@ Collocation analysis methods enable quantification of errors in multiple dataset
   - Non-constant calibration parameters
   - Requires PyMC3 (optional dependency)
 
+- **BTCH** (Bayesian Three-Cornered Hat): 3-way collocation with Bayesian uncertainty
+  - Constant error variances (homoscedastic)
+  - Full Bayesian uncertainty quantification
+  - Simpler and faster than BTC
+  - Ideal when time-varying errors not expected
+  - Requires PyMC3 (optional dependency)
+
 #### Application: Ecosystem Limitation Index (ELI)
 
 - **NEW**: Complete Python implementation of ELI calculation framework
@@ -137,7 +144,9 @@ best = select_best_combination(results, criterion='min_fMSE')
 merged = best.weighted_result[0]
 ```
 
-### Bayesian Triple Collocation (Advanced)
+### Bayesian Methods (Advanced)
+
+#### Bayesian Triple Collocation (Time-Varying Errors)
 
 ```python
 from collocation import BayesianTC, BAYESIAN_AVAILABLE
@@ -162,6 +171,37 @@ else:
     print("Install PyMC3 for Bayesian methods: pip install pymc3==3.11.5 theano-pymc")
 ```
 
+#### Bayesian Three-Cornered Hat (Constant Errors)
+
+```python
+from collocation import BayesianTCH, BAYESIAN_TCH_AVAILABLE
+
+if BAYESIAN_TCH_AVAILABLE:
+    # Three products (n_products, n_samples)
+    data = np.array([product1, product2, product3])
+
+    # Initialize and run Bayesian TCH (faster than BTC)
+    btch = BayesianTCH(data)
+    btch.run_inference(niter=2000, nadvi=50000)
+
+    # Get results with uncertainty quantification
+    rmse_mean, rmse_std, rmse_quantiles = btch.get_error_estimates()
+
+    # Get SNR with uncertainty
+    snr_mean, snr_std, snr_quantiles = btch.get_snr()
+
+    # Get correlation with uncertainty
+    rho2_mean, rho2_std, rho2_quantiles = btch.get_correlation()
+
+    # Print summary (verbose=True for full details)
+    btch.summary(verbose=True)
+
+    # Plot posterior distributions
+    fig, axes = btch.plot_posterior()
+else:
+    print("Install PyMC3 for Bayesian methods: pip install pymc3==3.11.5 theano-pymc")
+```
+
 ## Method Comparison
 
 | Method | # Products | Error Correlation | Temporal Info | Uncertainty | Best For |
@@ -172,6 +212,7 @@ else:
 | **EIVD** | 3 | Yes (estimated) | Lag-1 | No | Products with correlated errors |
 | **EC** | 4 | Yes (estimated) | No | No | Multi-sensor fusion |
 | **BTC** | 3+ | Yes (estimated) | Time-varying | Full Bayesian | Complex error structures, time-varying |
+| **BTCH** | 3 | Zero (assumed) | No | Full Bayesian | Constant errors with uncertainty quantification |
 
 ## Comprehensive Examples
 
@@ -196,12 +237,12 @@ Run the comprehensive comparison across multiple scenarios with Nature/Science q
 
 ```bash
 cd examples
-python comprehensive_comparison.py
+python comprehensive_comparison_TCH_included.py
 ```
 
 This advanced example includes:
 - **6 realistic scenarios**: Ideal, correlated errors, time-varying, biased, heavy-tailed, realistic
-- **All methods compared**: IVD, IVS, TC, EIVD, EC, BTC
+- **All methods compared**: IVD, IVS, TC, TCH, EIVD, EC, BTC, BTCH
 - **Publication-quality figures**: Following Nature/Science journal standards
   - 300 DPI resolution
   - Colorblind-friendly palette
@@ -401,7 +442,30 @@ rmse_mean, rmse_std, rmse_quantiles = btc.get_error_estimates()
 m_mean, l_mean = btc.get_calibration_parameters()
 ```
 
-**Parameters:**
+### BTCH (Bayesian Three-Cornered Hat)
+
+```python
+from collocation import BayesianTCH
+
+# Initialize with data
+btch = BayesianTCH(data)  # data shape: (n_products, n_samples), requires 3 products
+
+# Run inference (faster than BTC)
+btch.run_inference(niter=2000, nadvi=50000, seed=123)
+
+# Get results
+rmse_mean, rmse_std, rmse_quantiles = btch.get_error_estimates()
+snr_mean, snr_std, snr_quantiles = btch.get_snr()
+rho2_mean, rho2_std, rho2_quantiles = btch.get_correlation()
+
+# Print detailed summary
+btch.summary(verbose=True)
+
+# Plot posterior distributions
+fig, axes = btch.plot_posterior()
+```
+
+**Parameters (BTC):**
 - `data`: Input data (n_products, n_samples) - Three or more products
 - `niter`: MCMC iterations (default: 2000)
 - `nadvi`: ADVI iterations for initialization (default: 200000)
@@ -432,6 +496,27 @@ btc.setup_model(
 - Non-constant calibration parameters
 - Handles complex heteroscedastic structures
 - Can incorporate explanatory variables for time-varying parameters
+
+**Parameters (BTCH):**
+- `data`: Input data (3, n_samples) - Exactly three products required
+- `niter`: MCMC iterations (default: 2000)
+- `nadvi`: ADVI iterations for initialization (default: 50000)
+- `seed`: Random seed
+- `nchains`: Number of MCMC chains (default: 2)
+
+**Methods:**
+- `get_error_estimates()`: Returns RMSE mean, std, and quantiles
+- `get_snr()`: Returns SNR mean, std, and quantiles
+- `get_correlation()`: Returns correlation mean, std, and quantiles
+- `summary(verbose=True)`: Print detailed results
+- `plot_posterior()`: Plot posterior distributions
+
+**Key Differences from BTC:**
+- BTCH assumes constant error variances (simpler model)
+- BTC allows time-varying errors (more complex)
+- BTCH is faster (~2-5x) with fewer ADVI iterations needed
+- BTCH best for homoscedastic errors
+- BTC best for heteroscedastic, time-varying errors
 
 **Reference:**
 > Zwieback, S., et al. (2012). Structural and statistical properties of the collocation technique for error characterization. Nonlin. Processes Geophys., 19, 69-80.

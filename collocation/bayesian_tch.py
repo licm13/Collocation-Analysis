@@ -185,21 +185,164 @@ class BayesianTCH:
 
         return rmse_mean, rmse_std, rmse_quantiles
 
-    def summary(self):
-        """Print summary of inference results."""
+    def get_snr(self):
+        """
+        Calculate Signal-to-Noise Ratio (SNR) from posterior samples.
+
+        Returns
+        -------
+        snr_mean : np.ndarray
+            Posterior mean of SNR for each product
+        snr_std : np.ndarray
+            Posterior standard deviation of SNR
+        snr_quantiles : np.ndarray
+            2.5%, 50%, 97.5% quantiles (credible intervals)
+        """
         if self.trace is None:
             raise ValueError("Must run inference first")
-        
+
+        # Get posterior samples
+        sigmap_samples = self.trace.get_values('sigmap')  # Error std
+        sigma_T_samples = self.trace.get_values('sigma_T')  # Signal std
+
+        # Calculate SNR = (signal_var) / (error_var)
+        snr_samples = []
+        for i in range(self.n_products):
+            snr = (sigma_T_samples ** 2) / (sigmap_samples[:, i] ** 2)
+            snr_samples.append(snr)
+
+        snr_samples = np.array(snr_samples).T
+
+        snr_mean = snr_samples.mean(axis=0)
+        snr_std = snr_samples.std(axis=0)
+        snr_quantiles = np.percentile(snr_samples, [2.5, 50, 97.5], axis=0).T
+
+        return snr_mean, snr_std, snr_quantiles
+
+    def get_correlation(self):
+        """
+        Calculate data-truth correlation from posterior samples.
+
+        Returns
+        -------
+        rho2_mean : np.ndarray
+            Posterior mean of correlation for each product
+        rho2_std : np.ndarray
+            Posterior standard deviation of correlation
+        rho2_quantiles : np.ndarray
+            2.5%, 50%, 97.5% quantiles (credible intervals)
+        """
+        snr_mean, snr_std, snr_quantiles = self.get_snr()
+
+        # Get SNR samples
+        sigmap_samples = self.trace.get_values('sigmap')
+        sigma_T_samples = self.trace.get_values('sigma_T')
+
+        rho2_samples = []
+        for i in range(self.n_products):
+            snr = (sigma_T_samples ** 2) / (sigmap_samples[:, i] ** 2)
+            rho2 = snr / (1 + snr)
+            rho2_samples.append(rho2)
+
+        rho2_samples = np.array(rho2_samples).T
+
+        rho2_mean = rho2_samples.mean(axis=0)
+        rho2_std = rho2_samples.std(axis=0)
+        rho2_quantiles = np.percentile(rho2_samples, [2.5, 50, 97.5], axis=0).T
+
+        return rho2_mean, rho2_std, rho2_quantiles
+
+    def summary(self, verbose=True):
+        """
+        Print summary of inference results.
+
+        Parameters
+        ----------
+        verbose : bool, default=True
+            If True, print detailed summary including SNR and correlation
+        """
+        if self.trace is None:
+            raise ValueError("Must run inference first")
+
         rmse_mean, rmse_std, rmse_quantiles = self.get_error_estimates()
 
-        print("\n" + "="*60)
+        print("\n" + "="*70)
         print("Bayesian Three-Cornered Hat (BTCH) Results")
-        print("="*60)
+        print("="*70)
         print(f"\nRMSE Estimates (Posterior Mean ± Std):")
-        print("-" * 60)
+        print("-" * 70)
 
         for i in range(self.n_products):
             print(f"Product {i+1}: {rmse_mean[i]:.4f} ± {rmse_std[i]:.4f}")
             print(f"  95% CI: [{rmse_quantiles[i, 0]:.4f}, {rmse_quantiles[i, 2]:.4f}]")
-        
-        print("="*60 + "\n")
+
+        if verbose:
+            # Add SNR information
+            snr_mean, snr_std, snr_quantiles = self.get_snr()
+            print(f"\nSignal-to-Noise Ratio (SNR):")
+            print("-" * 70)
+            for i in range(self.n_products):
+                print(f"Product {i+1}: {snr_mean[i]:.4f} ± {snr_std[i]:.4f}")
+                print(f"  95% CI: [{snr_quantiles[i, 0]:.4f}, {snr_quantiles[i, 2]:.4f}]")
+
+            # Add correlation information
+            rho2_mean, rho2_std, rho2_quantiles = self.get_correlation()
+            print(f"\nData-Truth Correlation:")
+            print("-" * 70)
+            for i in range(self.n_products):
+                print(f"Product {i+1}: {rho2_mean[i]:.4f} ± {rho2_std[i]:.4f}")
+                print(f"  95% CI: [{rho2_quantiles[i, 0]:.4f}, {rho2_quantiles[i, 2]:.4f}]")
+
+        print("="*70 + "\n")
+
+    def plot_posterior(self, figsize=(12, 4)):
+        """
+        Plot posterior distributions of error estimates.
+
+        Parameters
+        ----------
+        figsize : tuple, default=(12, 4)
+            Figure size (width, height) in inches
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object
+        axes : array of matplotlib.axes.Axes
+            Array of axes objects
+        """
+        if self.trace is None:
+            raise ValueError("Must run inference first")
+
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError("Matplotlib required for plotting")
+
+        sigmap_samples = self.trace.get_values('sigmap')
+
+        fig, axes = plt.subplots(1, 3, figsize=figsize)
+
+        for i in range(self.n_products):
+            ax = axes[i]
+            samples = sigmap_samples[:, i]
+
+            # Plot histogram
+            ax.hist(samples, bins=50, density=True, alpha=0.7,
+                   color=f'C{i}', edgecolor='black', linewidth=0.5)
+
+            # Add quantiles
+            q25, q50, q75 = np.percentile(samples, [2.5, 50, 97.5])
+            ax.axvline(q50, color='red', linewidth=2, label='Median')
+            ax.axvline(q25, color='red', linewidth=1, linestyle='--',
+                      label='95% CI')
+            ax.axvline(q75, color='red', linewidth=1, linestyle='--')
+
+            ax.set_xlabel('RMSE')
+            ax.set_ylabel('Posterior Density')
+            ax.set_title(f'Product {i+1}')
+            ax.legend(loc='best', framealpha=0.9)
+            ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        return fig, axes
