@@ -32,6 +32,13 @@
   - 非常数标定参数
   - 需要PyMC3（可选依赖）
 
+- **BTCH** (Bayesian Three-Cornered Hat，贝叶斯三角帽): 3路交叉定标，贝叶斯不确定性量化
+  - 常数误差方差（同方差）
+  - 完整贝叶斯不确定性量化
+  - 比BTC更简单快速
+  - 适用于不期望时变误差的场景
+  - 需要PyMC3（可选依赖）
+
 #### 简单平均方法
 
 - **SimpleAverage** (简单平均): 多产品简单算术平均
@@ -162,7 +169,9 @@ merged = np.mean(products, axis=0)
 # 详见 SimpleAverage/README.md
 ```
 
-### 贝叶斯三路交叉定标 (高级)
+### 贝叶斯方法 (高级)
+
+#### 贝叶斯三路交叉定标 (时变误差)
 
 ```python
 from collocation import BayesianTC, BAYESIAN_AVAILABLE
@@ -187,6 +196,37 @@ else:
     print("安装PyMC3以使用贝叶斯方法: pip install pymc3==3.11.5 theano-pymc")
 ```
 
+#### 贝叶斯三角帽 (常数误差)
+
+```python
+from collocation import BayesianTCH, BAYESIAN_TCH_AVAILABLE
+
+if BAYESIAN_TCH_AVAILABLE:
+    # 三个产品 (n_products, n_samples)
+    data = np.array([product1, product2, product3])
+
+    # 初始化并运行贝叶斯TCH（比BTC更快）
+    btch = BayesianTCH(data)
+    btch.run_inference(niter=2000, nadvi=50000)
+
+    # 获取不确定性量化的结果
+    rmse_mean, rmse_std, rmse_quantiles = btch.get_error_estimates()
+
+    # 获取带不确定性的信噪比
+    snr_mean, snr_std, snr_quantiles = btch.get_snr()
+
+    # 获取带不确定性的相关性
+    rho2_mean, rho2_std, rho2_quantiles = btch.get_correlation()
+
+    # 打印详细摘要
+    btch.summary(verbose=True)
+
+    # 绘制后验分布
+    fig, axes = btch.plot_posterior()
+else:
+    print("安装PyMC3以使用贝叶斯方法: pip install pymc3==3.11.5 theano-pymc")
+```
+
 ## 方法比较
 
 | 方法 | 产品数 | 误差相关 | 时间信息 | 不确定性 | 最适用于 |
@@ -197,6 +237,7 @@ else:
 | **EIVD** | 3 | 是 (估计) | 滞后1 | 否 | 有相关误差的产品 |
 | **EC** | 4 | 是 (估计) | 否 | 否 | 多传感器融合 |
 | **BTC** | 3+ | 是 (估计) | 时变 | 完整贝叶斯 | 复杂误差结构，时变 |
+| **BTCH** | 3 | 零 (假设) | 否 | 完整贝叶斯 | 常数误差的不确定性量化 |
 | **SimpleAverage** | 2+ | 不考虑 | 否 | 否 | 快速初步分析 |
 
 ## 完整示例
@@ -222,12 +263,12 @@ python example_all_methods.py
 
 ```bash
 cd examples
-python comprehensive_comparison.py
+python comprehensive_comparison_TCH_included.py
 ```
 
 此高级示例包括:
 - **6个真实场景**: 理想、相关误差、时变、有偏差、重尾、真实
-- **所有方法比较**: IVD, IVS, TC, EIVD, EC, BTC
+- **所有方法比较**: IVD, IVS, TC, TCH, EIVD, EC, BTC, BTCH
 - **出版质量图表**: 遵循Nature/Science期刊标准
   - 300 DPI分辨率
   - 色盲友好调色板
@@ -464,6 +505,29 @@ rmse_mean, rmse_std, rmse_quantiles = btc.get_error_estimates()
 m_mean, l_mean = btc.get_calibration_parameters()
 ```
 
+### BTCH (贝叶斯三角帽)
+
+```python
+from collocation import BayesianTCH
+
+# 用数据初始化
+btch = BayesianTCH(data)  # data形状: (n_products, n_samples)，需要恰好3个产品
+
+# 运行推断（比BTC更快）
+btch.run_inference(niter=2000, nadvi=50000, seed=123)
+
+# 获取结果
+rmse_mean, rmse_std, rmse_quantiles = btch.get_error_estimates()
+snr_mean, snr_std, snr_quantiles = btch.get_snr()
+rho2_mean, rho2_std, rho2_quantiles = btch.get_correlation()
+
+# 打印详细摘要
+btch.summary(verbose=True)
+
+# 绘制后验分布
+fig, axes = btch.plot_posterior()
+```
+
 **参数:**
 - `data`: 输入数据 (n_products, n_samples) - 三个或更多产品
 - `niter`: MCMC迭代次数 (默认: 2000)
@@ -495,6 +559,27 @@ btc.setup_model(
 - 非常数标定参数
 - 处理复杂异方差结构
 - 可以纳入时变参数的解释变量
+
+**参数 (BTCH):**
+- `data`: 输入数据 (3, n_samples) - 恰好需要3个产品
+- `niter`: MCMC迭代次数 (默认: 2000)
+- `nadvi`: ADVI初始化迭代次数 (默认: 50000)
+- `seed`: 随机种子
+- `nchains`: MCMC链数 (默认: 2)
+
+**方法:**
+- `get_error_estimates()`: 返回RMSE均值、标准差和分位数
+- `get_snr()`: 返回SNR均值、标准差和分位数
+- `get_correlation()`: 返回相关性均值、标准差和分位数
+- `summary(verbose=True)`: 打印详细结果
+- `plot_posterior()`: 绘制后验分布
+
+**与BTC的主要区别:**
+- BTCH假设常数误差方差（更简单的模型）
+- BTC允许时变误差（更复杂）
+- BTCH更快（约2-5倍），需要更少的ADVI迭代
+- BTCH最适合同方差误差
+- BTC最适合异方差、时变误差
 
 **参考文献:**
 > Zwieback, S., et al. (2012). Structural and statistical properties of the collocation technique for error characterization. Nonlin. Processes Geophys., 19, 69-80.
