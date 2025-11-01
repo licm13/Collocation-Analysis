@@ -41,6 +41,8 @@ from dataclasses import dataclass
 from typing import Iterable, Tuple
 
 import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -253,6 +255,73 @@ def main() -> None:
     print("Truth variance:", np.var(truth))
     for scenario in scenarios:
         scenario.pretty_print()
+
+    # --- Create figures directory and save summary plots ---
+    # Use the script basename to create descriptive figure filenames
+    script_basename = os.path.splitext(os.path.basename(__file__))[0]
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    figures_dir = os.path.join(script_dir, "figures")
+    os.makedirs(figures_dir, exist_ok=True)
+
+    # Build a DataFrame summarizing key diagnostics
+    rows = []
+    for sc in scenarios:
+        rows.append({
+            'scenario': sc.name,
+            'merged_corr': sc.merged_correlation,
+            'kge': sc.kge,
+            'w1': sc.weights[0],
+            'w2': sc.weights[1],
+            'w3': sc.weights[2],
+        })
+    df = pd.DataFrame(rows)
+
+    # Plot 1: Merged correlation per scenario
+    plt.figure(figsize=(7, 4))
+    ax = plt.gca()
+    df_plot = df.set_index('scenario')
+    df_plot['merged_corr'].plot(kind='bar', color='#4C72B0', ax=ax)
+    ax.set_ylabel('Correlation with Truth')
+    ax.set_ylim(-1, 1)
+    ax.set_title('Merged Correlation by Scenario')
+    fname = f"{script_basename}_merged_correlation.png"
+    outpath = os.path.join(figures_dir, fname)
+    plt.tight_layout()
+    plt.savefig(outpath, dpi=300)
+    plt.close()
+
+    # Plot 2: KGE per scenario
+    plt.figure(figsize=(7, 4))
+    ax = plt.gca()
+    df_plot['kge'].plot(kind='bar', color='#55A868', ax=ax)
+    ax.set_ylabel('KGE')
+    ax.set_title('Kling-Gupta Efficiency (Merged vs Truth)')
+    fname = f"{script_basename}_kge.png"
+    outpath = os.path.join(figures_dir, fname)
+    plt.tight_layout()
+    plt.savefig(outpath, dpi=300)
+    plt.close()
+
+    # Plot 3: Weights per scenario (grouped bars)
+    plt.figure(figsize=(8, 4))
+    ax = plt.gca()
+    indices = np.arange(len(df))
+    width = 0.25
+    ax.bar(indices - width, df['w1'], width, label='Weight 1')
+    ax.bar(indices, df['w2'], width, label='Weight 2')
+    ax.bar(indices + width, df['w3'], width, label='Weight 3')
+    ax.set_xticks(indices)
+    ax.set_xticklabels(df['scenario'], rotation=25, ha='right')
+    ax.set_ylabel('Weight')
+    ax.set_title('Merging Weights by Scenario')
+    ax.legend()
+    plt.tight_layout()
+    fname = f"{script_basename}_weights.png"
+    outpath = os.path.join(figures_dir, fname)
+    plt.savefig(outpath, dpi=300)
+    plt.close()
+
+    print(f"Saved figures to: {figures_dir}")
 
 
 if __name__ == "__main__":
