@@ -18,7 +18,12 @@ Collocation analysis methods enable quantification of errors in multiple dataset
 - **IVD** (Information Vector Dual): 2-way collocation with temporal offset optimization
 - **IVS** (Information Vector with Scaling): 2-way collocation with bootstrap uncertainty estimation
 - **TC** (Triple Collocation): Classic 3-way collocation assuming independent errors
-- **EIVD** (Extended IVD): 3-way collocation allowing error cross-correlation
+- **EIVD** (Extended IVD): 3-way collocation allowing one error cross-correlation pair
+- **ETCC** (Extended Triple Collocation): 3-way collocation with full error cross-correlation structure
+  - Allows all pairwise error correlations (most general)
+  - Uses lag-1 and lag-2 temporal correlations
+  - Provides complete error covariance matrix
+  - Multiple estimation methods (full, sequential, constrained)
 - **EC** (Extended Collocation): 4-way quadruple collocation with optimal merging weights
 
 #### Bayesian Methods
@@ -125,6 +130,35 @@ EeeT, rho2, weights = ivd(dual)
 merged = weights[0] * product1 + weights[1] * product2
 ```
 
+### Extended Triple Collocation (ETCC) for Correlated Errors
+
+```python
+from collocation import etcc, compare_tc_eivd_etcc
+
+# Three products with potentially correlated errors
+tri = np.column_stack([product1, product2, product3])
+
+# Apply ETCC with full error correlation estimation
+EeeT, SNR, rho2, fMSE, diagnostics = etcc(tri)
+
+# Full error covariance matrix (all pairs can be non-zero)
+print("Error covariance matrix:")
+print(EeeT)
+
+# Normalized error correlation matrix
+print("Error correlation matrix:")
+print(diagnostics['error_corr_matrix'])
+
+# Compare all three methods automatically
+comparison = compare_tc_eivd_etcc(tri)
+print(f"Recommendation: {comparison['recommendation']}")
+
+# Different estimation methods
+EeeT_full, SNR, rho2, fMSE, diag = etcc(tri, method='full')
+EeeT_seq, SNR, rho2, fMSE, diag = etcc(tri, method='sequential')  # Faster
+EeeT_con, SNR, rho2, fMSE, diag = etcc(tri, method='constrained')  # Ensures positive-definite
+```
+
 ### Extended Collocation for Four Products
 
 ```python
@@ -209,7 +243,8 @@ else:
 | **IVD** | 2 | No | Offset-based | No | Fusing two products with optimal weights |
 | **IVS** | 2 | No | Lag-1 + Bootstrap | Bootstrap | Uncertainty quantification (2-way) |
 | **TC** | 3 | Zero (assumed) | No | No | Standard 3-way validation |
-| **EIVD** | 3 | Yes (estimated) | Lag-1 | No | Products with correlated errors |
+| **EIVD** | 3 | One pair (estimated) | Lag-1 | No | One pair with correlated errors |
+| **ETCC** | 3 | Full (all pairs) | Lag-1 & Lag-2 | No | Multiple correlated error pairs |
 | **EC** | 4 | Yes (estimated) | No | No | Multi-sensor fusion |
 | **BTC** | 3+ | Yes (estimated) | Time-varying | Full Bayesian | Complex error structures, time-varying |
 | **BTCH** | 3 | Zero (assumed) | No | Full Bayesian | Constant errors with uncertainty quantification |
@@ -402,6 +437,60 @@ EeeT, SNR, rho2, fMSE, L = eivd(tri)
 - `L`: Lag-1 autocorrelations (3,)
 
 **Note:** Products 2 and 3 can have non-zero error cross-correlation.
+
+### ETCC (Extended Triple Collocation)
+
+```python
+from collocation import etcc, compare_tc_eivd_etcc
+
+# Basic usage
+EeeT, SNR, rho2, fMSE, diagnostics = etcc(tri)
+
+# With options
+EeeT, SNR, rho2, fMSE, diagnostics = etcc(
+    tri,
+    use_lag2=True,          # Use lag-2 for better estimation
+    method='full'           # 'full', 'sequential', or 'constrained'
+)
+
+# Compare all methods
+comparison = compare_tc_eivd_etcc(tri)
+```
+
+**Parameters:**
+- `tri`: Input data (n, 3) - Three products
+- `use_lag2`: Use lag-2 temporal correlations (default: True)
+- `method`: Estimation method
+  - `'full'`: Full estimation using all lags (most accurate)
+  - `'sequential'`: Sequential estimation (faster)
+  - `'constrained'`: Constrained optimization (ensures positive-definite)
+
+**Returns:**
+- `EeeT`: Full error covariance matrix (3, 3) - **all** elements can be non-zero
+- `SNR`: Signal-to-noise ratios (3,)
+- `rho2`: Data-truth correlations (3,)
+- `fMSE`: Fractional MSE (3,)
+- `diagnostics`: Dictionary with:
+  - `'error_corr_matrix'`: Normalized correlation matrix
+  - `'condition_number'`: Condition number of equation system
+  - `'is_positive_definite'`: Whether matrix is positive definite
+  - `'lag1_autocorr'`, `'lag2_autocorr'`: Temporal autocorrelations
+
+**Key Features:**
+- Estimates **complete** error covariance structure (all 3 pairs)
+- More general than TC (zero correlations) or EIVD (one pair)
+- Uses multiple temporal lags for robust estimation
+- Provides comprehensive diagnostics
+- Three estimation methods for different use cases
+
+**When to use ETCC:**
+- Multiple products may have correlated errors
+- Products use similar algorithms or data sources
+- You need most accurate error characterization
+- Sufficient temporal resolution available
+
+**Reference:**
+> McColl, K. A., et al. (2014). Extended triple collocation: Estimating errors and correlation coefficients with respect to an unknown target. Geophysical Research Letters, 41(17), 6229-6236.
 
 ### EC (Extended Collocation)
 

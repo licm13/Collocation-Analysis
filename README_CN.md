@@ -20,7 +20,12 @@
 - **IVD** (Information Vector Dual，信息向量对偶): 2路交叉定标，优化时间偏移
 - **IVS** (Information Vector with Scaling，带尺度的信息向量): 2路交叉定标，Bootstrap不确定性估计
 - **TC** (Triple Collocation，三路交叉定标): 经典3路交叉定标，假设误差独立
-- **EIVD** (Extended IVD，扩展IVD): 3路交叉定标，允许误差相关
+- **EIVD** (Extended IVD，扩展IVD): 3路交叉定标，允许一对误差相关
+- **ETCC** (Extended Triple Collocation，扩展三路交叉定标): 3路交叉定标，允许完整误差相关结构
+  - 允许所有成对误差相关（最通用）
+  - 使用滞后1和滞后2时间相关性
+  - 提供完整误差协方差矩阵
+  - 多种估计方法（完整、顺序、约束）
 - **EC** (Extended Collocation，扩展交叉定标): 4路四元交叉定标，提供最优融合权重
 
 #### 贝叶斯方法
@@ -135,6 +140,35 @@ EeeT, rho2, weights = ivd(dual)
 merged = weights[0] * product1 + weights[1] * product2
 ```
 
+### 扩展三路交叉定标 (ETCC) 处理相关误差
+
+```python
+from collocation import etcc, compare_tc_eivd_etcc
+
+# 三个可能有相关误差的产品
+tri = np.column_stack([product1, product2, product3])
+
+# 应用ETCC进行完整误差相关性估计
+EeeT, SNR, rho2, fMSE, diagnostics = etcc(tri)
+
+# 完整误差协方差矩阵（所有对都可以非零）
+print("误差协方差矩阵:")
+print(EeeT)
+
+# 归一化误差相关矩阵
+print("误差相关矩阵:")
+print(diagnostics['error_corr_matrix'])
+
+# 自动比较所有三种方法
+comparison = compare_tc_eivd_etcc(tri)
+print(f"建议: {comparison['recommendation']}")
+
+# 不同的估计方法
+EeeT_full, SNR, rho2, fMSE, diag = etcc(tri, method='full')
+EeeT_seq, SNR, rho2, fMSE, diag = etcc(tri, method='sequential')  # 更快
+EeeT_con, SNR, rho2, fMSE, diag = etcc(tri, method='constrained')  # 确保正定
+```
+
 ### 四个产品的扩展交叉定标
 
 ```python
@@ -234,7 +268,8 @@ else:
 | **IVD** | 2 | 否 | 基于偏移 | 否 | 两个产品的最优权重融合 |
 | **IVS** | 2 | 否 | 滞后1 + Bootstrap | Bootstrap | 不确定性量化 (2路) |
 | **TC** | 3 | 零 (假设) | 否 | 否 | 标准3路验证 |
-| **EIVD** | 3 | 是 (估计) | 滞后1 | 否 | 有相关误差的产品 |
+| **EIVD** | 3 | 一对 (估计) | 滞后1 | 否 | 一对有相关误差 |
+| **ETCC** | 3 | 完整 (所有对) | 滞后1和2 | 否 | 多对相关误差 |
 | **EC** | 4 | 是 (估计) | 否 | 否 | 多传感器融合 |
 | **BTC** | 3+ | 是 (估计) | 时变 | 完整贝叶斯 | 复杂误差结构，时变 |
 | **BTCH** | 3 | 零 (假设) | 否 | 完整贝叶斯 | 常数误差的不确定性量化 |
@@ -465,6 +500,60 @@ EeeT, SNR, rho2, fMSE, L = eivd(tri)
 - `L`: 滞后1自相关 (3,)
 
 **注意:** 产品2和3可以有非零误差交叉相关。
+
+### ETCC (扩展三路交叉定标)
+
+```python
+from collocation import etcc, compare_tc_eivd_etcc
+
+# 基本用法
+EeeT, SNR, rho2, fMSE, diagnostics = etcc(tri)
+
+# 带选项
+EeeT, SNR, rho2, fMSE, diagnostics = etcc(
+    tri,
+    use_lag2=True,          # 使用滞后2以获得更好的估计
+    method='full'           # 'full', 'sequential', 或 'constrained'
+)
+
+# 比较所有方法
+comparison = compare_tc_eivd_etcc(tri)
+```
+
+**参数:**
+- `tri`: 输入数据 (n, 3) - 三个产品
+- `use_lag2`: 使用滞后2时间相关性 (默认: True)
+- `method`: 估计方法
+  - `'full'`: 使用所有滞后的完整估计（最准确）
+  - `'sequential'`: 顺序估计（更快）
+  - `'constrained'`: 约束优化（确保正定）
+
+**返回:**
+- `EeeT`: 完整误差协方差矩阵 (3, 3) - **所有**元素都可以非零
+- `SNR`: 信噪比 (3,)
+- `rho2`: 数据-真值相关性 (3,)
+- `fMSE`: 分数MSE (3,)
+- `diagnostics`: 包含以下内容的字典:
+  - `'error_corr_matrix'`: 归一化相关矩阵
+  - `'condition_number'`: 方程系统的条件数
+  - `'is_positive_definite'`: 矩阵是否正定
+  - `'lag1_autocorr'`, `'lag2_autocorr'`: 时间自相关
+
+**主要特性:**
+- 估计**完整**误差协方差结构（所有3对）
+- 比TC（零相关）或EIVD（一对）更通用
+- 使用多个时间滞后进行稳健估计
+- 提供全面的诊断信息
+- 三种估计方法适用于不同场景
+
+**何时使用ETCC:**
+- 多个产品可能有相关误差
+- 产品使用相似的算法或数据源
+- 需要最准确的误差表征
+- 有足够的时间分辨率
+
+**参考文献:**
+> McColl, K. A., et al. (2014). Extended triple collocation: Estimating errors and correlation coefficients with respect to an unknown target. Geophysical Research Letters, 41(17), 6229-6236.
 
 ### EC (扩展交叉定标)
 

@@ -12,7 +12,8 @@ Classical Methods:
 - IVS: Information Vector with Scaling (2-way with bootstrap)
 - TC: Triple Collocation (3-way, assumes zero error cross-correlation)
 - TCH: Three-Cornered Hat (Classic, mathematically equivalent to TC)
-- EIVD: Extended Information Vector Dual (3-way, allows error cross-correlation)
+- EIVD: Extended Information Vector Dual (3-way, allows one error cross-correlation)
+- ETCC: Extended Triple Collocation (3-way, allows full error cross-correlation)
 - EC: Extended Collocation (4-way quadruple collocation)
 
 Simple Methods:
@@ -30,6 +31,7 @@ from .ivd import ivd
 from .ivs import ivs
 from .tc import tc
 from .eivd import eivd
+from .etcc import etcc, compare_methods as compare_tc_eivd_etcc
 from .ec import ec
 from .utils import mse_judge, kge_objfun
 
@@ -72,7 +74,7 @@ except ImportError:
     BayesianTCH = None
 
 
-__version__ = '1.3.0' # Incremented version
+__version__ = '1.4.0' # Incremented version for ETCC addition
 
 __all__ = [
     # Classical methods
@@ -81,6 +83,8 @@ __all__ = [
     'tc',
     'tch', # Added TCH alias
     'eivd',
+    'etcc', # Added ETCC
+    'compare_tc_eivd_etcc', # Added ETCC comparison
     'ec',
     # Simple methods
     'simple_average',
