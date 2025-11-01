@@ -790,6 +790,471 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 7. Wei, M., Qiao, B., Zhao, J., & Zuo, X. (2023). Ground validation of GPM IMERG precipitation products over Iran. *Geophysical Research Letters*, 50(18).
 
+## Data Fusion Module
+
+### Overview
+
+The `collocation.fusion` subpackage provides a comprehensive framework for multi-source data fusion using optimal weighting strategies. Supports both simple inverse-variance weighting and advanced GLS/BLUE fusion with full error covariance.
+
+**Key Features:**
+- **Multiple fusion modes**: IVW, GLS/BLUE, constrained QP
+- **Covariance estimation**: From MSE, TC/IVD, with shrinkage
+- **Constraints**: Sum-to-one, bounds, physics (energy balance, ET ≤ PET)
+- **Localization**: Moving windows, biome/climate partitioning
+- **Robust estimation**: Huber loss, outlier detection
+- **Uncertainty**: Analytical variance, bootstrap CI, diagnostics
+- **CLI tools**: Command-line interface for ET fusion
+
+### Fusion Algorithms
+
+#### 1. Inverse Variance Weighting (IVW)
+
+Simple diagonal fusion: **w_k ∝ 1/MSE_k**
+
+```python
+from collocation.fusion import solve_weights_ivw, estimate_mse
+
+# Estimate MSE from data
+mse = estimate_mse(y_pred, y_ref)  # shape: (n_models,)
+
+# Compute IVW weights
+weights = solve_weights_ivw(mse, sum_to_one=True)
+
+# Fuse
+x_fused = (y_pred * weights).sum(dim='model')
+```
+
+**When to use:**
+- Errors are independent across models
+- Simple, fast, transparent
+- Good baseline for comparison
+
+#### 2. Generalized Least Squares (GLS/BLUE)
+
+Full covariance fusion: **w = Σ⁻¹1 / (1ᵀΣ⁻¹1)**
+
+Minimizes fused variance: **Var(x̂) = (1ᵀΣ⁻¹1)⁻¹**
+
+```python
+from collocation.fusion import solve_weights_gls, build_sigma
+
+# Build covariance matrix
+Sigma = build_sigma(mse, cross_cov, shrinkage="lw")
+
+# Solve for GLS weights
+weights = solve_weights_gls(Sigma, sum_to_one=True)
+
+# Variance of fused estimate
+var_fused = 1.0 / (np.ones(K) @ np.linalg.inv(Sigma) @ np.ones(K))
+```
+
+**When to use:**
+- Models have correlated errors
+- Full covariance available (from TC, IVD, or sample estimate)
+- Optimal BLUE estimator
+
+#### 3. Constrained Quadratic Programming (QP)
+
+Minimize variance with constraints:
+
+**min_w** (1/2) wᵀΣw
+**s.t.** 1ᵀw = 1, w_min ≤ w ≤ w_max, Aw ≤ b
+
+```python
+from collocation.fusion import solve_weights_qp
+
+# Define constraints
+A_eq = np.array([[1, 1, 1]])      # sum-to-one
+b_eq = np.array([1.0])
+bounds = (0.1, 0.9)               # prevent extreme weights
+
+weights = solve_weights_qp(
+    Sigma,
+    A_eq=A_eq, b_eq=b_eq,
+    bounds=bounds,
+    solver="quadprog"
+)
+```
+
+**When to use:**
+- Need to enforce physical constraints
+- Prevent degenerate weights
+- Energy balance: Ec + Et = E
+- Plausibility: 0 ≤ ET ≤ PET
+
+### High-Level API: `fuse_fields`
+
+End-to-end fusion orchestrator:
+
+```python
+from collocation.fusion import fuse_fields
+import xarray as xr
+
+# Multi-model data
+X = xr.DataArray(
+    data,  # shape: (time, lat, lon, model)
+    dims=["time", "lat", "lon", "model"],
+    coords={"model": ["ERA5", "GLEAM", "GLDAS"]}
+)
+
+# Reference for MSE estimation
+X_ref = xr.DataArray(
+    reference_data,  # shape: (time, lat, lon)
+    dims=["time", "lat", "lon"]
+)
+
+# Fuse with GLS
+result = fuse_fields(
+    X, X_ref=X_ref,
+    mode="gls",              # ivw, gls, or qp
+    shrinkage="lw",          # Ledoit-Wolf shrinkage
+    robust=False,            # Use Huber loss if True
+    return_weights=True,
+    return_var=True,
+    return_diagnostics=True
+)
+
+# Access results
+fused_ET = result["fused"]
+weights = result["weights"]
+variance = result["variance"]
+diagnostics = result["diagnostics"]
+```
+
+### Covariance Estimation
+
+#### From MSE
+
+```python
+from collocation.fusion import estimate_mse, build_sigma
+
+# Estimate MSE per model
+mse = estimate_mse(y_pred, y_ref, robust=False)
+
+# Build diagonal covariance
+Sigma_diag = build_sigma(mse, cross=None)
+
+# Or estimate cross-covariance via Triple Collocation
+from collocation.fusion import estimate_cross_covariance
+
+cross_cov = estimate_cross_covariance(
+    y_pred, y_ref, method="tc"  # or "ivd", "sample"
+)
+Sigma_full = build_sigma(mse, cross=cross_cov, shrinkage="lw")
+```
+
+#### Shrinkage Methods
+
+Regularize ill-conditioned covariance:
+
+| Method | Description | When to use |
+|--------|-------------|-------------|
+| **Ledoit-Wolf (lw)** | Shrink toward scaled identity | Small samples, default choice |
+| **OAS** | Oracle Approximating Shrinkage | Similar to LW |
+| **Ridge** | Diagonal loading Σ + λI | Explicit regularization |
+| **none** | No shrinkage | Large samples, well-conditioned |
+
+```python
+Sigma = build_sigma(mse, shrinkage="lw", lam=0.5)
+```
+
+#### Covariance Tapering
+
+Reduce spurious long-range correlations:
+
+```python
+from collocation.fusion import apply_covariance_tapering
+
+# Compute distances
+distance = compute_distance_matrix(lat, lon, metric="haversine")
+
+# Apply Gaspari-Cohn taper
+Sigma_tapered = apply_covariance_tapering(
+    Sigma, distance,
+    cutoff_radius=500,  # km
+    taper_function="gaspari_cohn"
+)
+```
+
+### Localization
+
+Spatially/temporally varying weights:
+
+#### Moving Windows
+
+```python
+from collocation.fusion import apply_moving_window
+
+# Local MSE estimation
+window_spec = {"time": 30, "space": 7}  # 30 days, 7×7 pixels
+mse_local = estimate_mse(X, X_ref, window=window_spec)
+
+# Fuse with local weights
+result = fuse_fields(
+    X, X_ref=X_ref,
+    localization={"strategy": "window", "window": window_spec}
+)
+```
+
+#### Biome Partitioning
+
+```python
+from collocation.fusion import partition_by_biome
+
+# Separate weights per ecosystem
+biome_map = xr.DataArray(biome_ids, dims=["lat", "lon"])
+partitions = partition_by_biome(X, biome_map)
+
+# Fuse each biome separately
+for biome_id, X_biome in partitions.items():
+    result = fuse_fields(X_biome, X_ref=X_ref)
+```
+
+### Constraints
+
+#### Built-in Constraints
+
+```python
+from collocation.fusion import (
+    SumToOneConstraint,
+    BoundsConstraint,
+    EnergyBalanceConstraint,
+    ETConstraint,
+)
+
+# Sum-to-one
+c1 = SumToOneConstraint(n_models=3)
+
+# Bounds
+c2 = BoundsConstraint(n_models=3, w_min=0.0, w_max=1.0)
+
+# Energy balance: Ec + Et ≈ E
+c3 = EnergyBalanceConstraint(
+    ec_index=0, et_index=1, e_total_index=2, tolerance=0.1
+)
+
+# ET plausibility: 0 ≤ ET ≤ PET
+c4 = ETConstraint(et_index=0, pet_values=PET)
+```
+
+#### Using Constraints in QP
+
+```python
+constraints = {
+    "sum_to_one": True,
+    "bounds": (0.0, 1.0),
+}
+
+result = fuse_fields(X, X_ref=X_ref, mode="qp", constraints=constraints)
+```
+
+### Robust Estimation
+
+Handle outliers with Huber loss:
+
+```python
+from collocation.fusion import estimate_mse_robust, detect_outliers
+
+# Robust MSE (downweights outliers)
+mse_robust = estimate_mse_robust(y_pred, y_ref, loss="huber")
+
+# Detect outliers
+outlier_mask = detect_outliers(data, method="iqr")
+
+# Robust fusion
+result = fuse_fields(X, X_ref=X_ref, mode="ivw", robust=True)
+```
+
+### Uncertainty Quantification
+
+#### Analytical Variance
+
+```python
+from collocation.fusion import propagate_variance
+
+# Fused variance: Var(x̂) = wᵀΣw
+var_fused = propagate_variance(Sigma, weights)
+std_fused = np.sqrt(var_fused)
+```
+
+#### Bootstrap Confidence Intervals
+
+```python
+from collocation.fusion import bootstrap_uncertainty
+
+ci = bootstrap_uncertainty(
+    data, weights,
+    n_boot=1000,
+    alpha=0.05  # 95% CI
+)
+
+print(f"95% CI: [{ci['ci_lower']:.3f}, {ci['ci_upper']:.3f}]")
+```
+
+#### Diagnostics
+
+```python
+from collocation.fusion import compute_diagnostics
+
+diag = compute_diagnostics(weights, Sigma)
+
+# Effective sample size (1 ≤ N_eff ≤ K)
+print(f"Effective N: {diag['effective_n']:.2f}")
+
+# Entropy (high = diverse, low = concentrated)
+print(f"Entropy: {diag['entropy']:.3f}")
+
+# Concentration (HHI index)
+print(f"Concentration: {diag['concentration']:.3f}")
+```
+
+### Command-Line Interface
+
+Fuse ET products from NetCDF files:
+
+```bash
+# Simple IVW
+python scripts/fuse_et.py \
+    --inputs ERA5.nc GLEAM.nc GLDAS.nc \
+    --var ET \
+    --mode ivw \
+    --output fused_et.nc
+
+# GLS with Ledoit-Wolf shrinkage
+python scripts/fuse_et.py \
+    --inputs *.nc \
+    --var ET \
+    --mode gls \
+    --shrinkage lw \
+    --mse-window time=30 \
+    --output fused_et.nc \
+    --weights weights.nc \
+    --diagnostics
+
+# Constrained QP with bounds
+python scripts/fuse_et.py \
+    --inputs *.nc \
+    --var ET \
+    --mode qp \
+    --bounds 0.1 0.9 \
+    --output fused_et.nc
+
+# Robust fusion (outlier handling)
+python scripts/fuse_et.py \
+    --inputs *.nc \
+    --var ET \
+    --mode ivw \
+    --robust \
+    --output fused_et.nc
+```
+
+### Examples
+
+Run comprehensive examples:
+
+```bash
+cd examples
+python example_fusion.py
+```
+
+**Outputs:**
+- Example 1: Simple IVW fusion
+- Example 2: GLS with full covariance
+- Example 3: Constrained QP
+- Example 4: Robust fusion with outliers
+- Diagnostic plots (600 dpi, journal-quality)
+
+### Mathematical Background
+
+#### IVW Weights
+
+For independent errors with variances σ²_k:
+
+**w_k = (1/σ²_k) / Σ_j(1/σ²_j)**
+
+Fused variance: **Var(x̂) = 1 / Σ_k(1/σ²_k)**
+
+#### GLS/BLUE Weights
+
+For error covariance Σ:
+
+**w = Σ⁻¹1 / (1ᵀΣ⁻¹1)**
+
+Properties:
+- Minimum variance unbiased estimator
+- **Var(x̂) = (1ᵀΣ⁻¹1)⁻¹**
+- Reduces to IVW if Σ is diagonal
+
+#### Constrained QP
+
+**min_w** (1/2) wᵀΣw - aᵀw
+**s.t.** A_eq w = b_eq (equality)
+       A_ineq w ≤ b_ineq (inequality)
+       w_min ≤ w ≤ w_max (bounds)
+
+Solved via quadprog, cvxopt, or OSQP.
+
+### Performance Notes
+
+- **IVW**: O(K) per pixel (diagonal only)
+- **GLS**: O(K³) per pixel (Cholesky decomposition)
+- **QP**: O(K³) per pixel + QP iterations
+- **Localization**: Compute chunks in parallel with Dask
+
+For large grids, use:
+```python
+result = fuse_fields(X.chunk({"time": 50, "lat": 20, "lon": 20}), ...)
+```
+
+### API Reference
+
+#### Core Functions
+
+- `fuse_fields()`: High-level fusion orchestrator
+- `solve_weights_ivw()`: Inverse variance weights
+- `solve_weights_gls()`: GLS/BLUE weights
+- `solve_weights_qp()`: Constrained QP weights
+- `estimate_mse()`: Mean squared error estimation
+- `build_sigma()`: Covariance matrix construction
+- `propagate_variance()`: Analytical variance propagation
+
+#### Modules
+
+- `fusion.weights`: Weight solvers
+- `fusion.covariance`: Covariance estimation
+- `fusion.constraints`: Constraint classes
+- `fusion.robust`: Robust estimators
+- `fusion.localization`: Spatial/temporal localization
+- `fusion.uncertainty`: Uncertainty quantification
+- `fusion.fuse`: High-level API
+
+### Testing
+
+Run fusion tests:
+
+```bash
+pytest tests/test_fusion.py -v
+```
+
+**Test coverage:**
+- Synthetic data with known covariance
+- IVW, GLS, QP solvers
+- Constraint satisfaction
+- Robust estimation with outliers
+- Heteroscedastic errors
+- Missing data handling
+- Variance propagation
+
+### References
+
+1. **Ledoit, O., & Wolf, M. (2004).** A well-conditioned estimator for large-dimensional covariance matrices. *Journal of Multivariate Analysis*, 88(2), 365-411.
+
+2. **Gaspari, G., & Cohn, S. E. (1999).** Construction of correlation functions in two and three dimensions. *Quarterly Journal of the Royal Meteorological Society*, 125(554), 723-757.
+
+3. **Gruber, A., et al. (2016).** Recent advances in (soil moisture) triple collocation analysis. *International Journal of Applied Earth Observation and Geoinformation*, 45, 200-211.
+
+4. **Yilmaz, M. T., & Crow, W. T. (2014).** Evaluation of assumptions in soil moisture triple collocation analysis. *Journal of Hydrometeorology*, 15(3), 1293-1302.
+
 ## Contact
 
 For questions, issues, or suggestions:

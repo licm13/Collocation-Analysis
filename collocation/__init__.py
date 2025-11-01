@@ -23,6 +23,11 @@ Bayesian Methods:
 - BTC: Bayesian Triple Collocation (3-way, time-varying errors, full uncertainty)
 - BTCH: Bayesian Three-Cornered Hat (3-way, constant errors, full uncertainty)
 
+Data Fusion Module (NEW):
+- fusion: Comprehensive data fusion framework with IVW, GLS/BLUE, constrained QP
+  Import via: from collocation.fusion import fuse_fields, solve_weights_gls, etc.
+  See documentation for full API reference
+
 Author: Converted from MATLAB by Claude
 Original MATLAB code: licm_13@163.com
 """
