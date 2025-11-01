@@ -2,7 +2,7 @@
 Comprehensive Example: ETCC (Extended Triple Collocation for Correlation)
 
 This script demonstrates the use of ETCC for merging three precipitation products
-with the goal of maximizing correlation with unknown truth.
+with the goal of maximizing correlation.
 
 Compares:
 1. Traditional Triple Collocation (TC) - minimizes RMSE
@@ -10,7 +10,11 @@ Compares:
 
 Based on: Wei et al. (2023), Geophysical Research Letters
 """
+import sys
+import os
 
+# Add parent directory for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import matplotlib.pyplot as plt
 from collocation import ETCC, TripleCollocation
@@ -89,11 +93,11 @@ def compare_tc_etcc(truth, product1, product2, product3):
     tc_metrics = calculate_all_metrics(truth, merged_tc)
     print(f"\nTC Performance vs Truth:")
     print(f"  Correlation: {tc_metrics['r']:.4f}")
-    print(f"  RMSE: {tc_metrics['rmse']:.4f}")
-    print(f"  MAE: {tc_metrics['mae']:.4f}")
-    print(f"  KGE: {tc_metrics['kge']:.4f}")
-    print(f"  NSE: {tc_metrics['nse']:.4f}")
-    print(f"  PBIAS: {tc_metrics['pbias']:.2f}%")
+    print(f"  RMSE: {tc_metrics['RMSE']:.4f}")
+    print(f"  MAE: {tc_metrics['MAE']:.4f}")
+    print(f"  KGE: {tc_metrics['KGE']:.4f}")
+    print(f"  NSE: {tc_metrics['NSE']:.4f}")
+    print(f"  PBIAS: {tc_metrics['PBIAS']:.2f}%")
 
     # ETCC (maximizes correlation)
     print("\n2. Extended Triple Collocation for Correlation (ETCC)")
@@ -117,11 +121,11 @@ def compare_tc_etcc(truth, product1, product2, product3):
     etcc_metrics = calculate_all_metrics(truth, merged_etcc)
     print(f"\nETCC Performance vs Truth:")
     print(f"  Correlation: {etcc_metrics['r']:.4f}")
-    print(f"  RMSE: {etcc_metrics['rmse']:.4f}")
-    print(f"  MAE: {etcc_metrics['mae']:.4f}")
-    print(f"  KGE: {etcc_metrics['kge']:.4f}")
-    print(f"  NSE: {etcc_metrics['nse']:.4f}")
-    print(f"  PBIAS: {etcc_metrics['pbias']:.2f}%")
+    print(f"  RMSE: {etcc_metrics['RMSE']:.4f}")
+    print(f"  MAE: {etcc_metrics['MAE']:.4f}")
+    print(f"  KGE: {etcc_metrics['KGE']:.4f}")
+    print(f"  NSE: {etcc_metrics['NSE']:.4f}")
+    print(f"  PBIAS: {etcc_metrics['PBIAS']:.2f}%")
 
     # Individual product metrics
     print("\n3. Individual Product Performance vs Truth")
@@ -130,8 +134,8 @@ def compare_tc_etcc(truth, product1, product2, product3):
         metrics = calculate_all_metrics(truth, product)
         print(f"\nProduct {i}:")
         print(f"  Correlation: {metrics['r']:.4f}")
-        print(f"  RMSE: {metrics['rmse']:.4f}")
-        print(f"  MAE: {metrics['mae']:.4f}")
+        print(f"  RMSE: {metrics['RMSE']:.4f}")
+        print(f"  MAE: {metrics['MAE']:.4f}")
 
     # Summary comparison
     print("\n4. Summary Comparison")
@@ -141,27 +145,27 @@ def compare_tc_etcc(truth, product1, product2, product3):
 
     for i, product in enumerate([product1, product2, product3], 1):
         m = calculate_all_metrics(truth, product)
-        print(f"Product {i:<14} {m['r']:<15.4f} {m['rmse']:<15.4f} {m['kge']:<15.4f}")
+        print(f"Product {i:<14} {m['r']:<15.4f} {m['RMSE']:<15.4f} {m['KGE']:<15.4f}")
 
-    print(f"{'TC Merged':<20} {tc_metrics['r']:<15.4f} {tc_metrics['rmse']:<15.4f} {tc_metrics['kge']:<15.4f}")
-    print(f"{'ETCC Merged':<20} {etcc_metrics['r']:<15.4f} {etcc_metrics['rmse']:<15.4f} {etcc_metrics['kge']:<15.4f}")
+    print(f"{'TC Merged':<20} {tc_metrics['r']:<15.4f} {tc_metrics['RMSE']:<15.4f} {tc_metrics['KGE']:<15.4f}")
+    print(f"{'ETCC Merged':<20} {etcc_metrics['r']:<15.4f} {etcc_metrics['RMSE']:<15.4f} {etcc_metrics['KGE']:<15.4f}")
     print("-" * 80)
 
     # Improvement analysis
     best_product_corr = max([calculate_all_metrics(truth, p)['r'] for p in [product1, product2, product3]])
-    best_product_rmse = min([calculate_all_metrics(truth, p)['rmse'] for p in [product1, product2, product3]])
+    best_product_rmse = min([calculate_all_metrics(truth, p)['RMSE'] for p in [product1, product2, product3]])
 
     print(f"\nImprovement over best individual product:")
     print(f"  TC Correlation improvement: {(tc_metrics['r'] - best_product_corr):.4f}")
-    print(f"  TC RMSE improvement: {(best_product_rmse - tc_metrics['rmse']):.4f}")
+    print(f"  TC RMSE improvement: {(best_product_rmse - tc_metrics['RMSE']):.4f}")
     print(f"  ETCC Correlation improvement: {(etcc_metrics['r'] - best_product_corr):.4f}")
-    print(f"  ETCC RMSE improvement: {(best_product_rmse - etcc_metrics['rmse']):.4f}")
+    print(f"  ETCC RMSE improvement: {(best_product_rmse - etcc_metrics['RMSE']):.4f}")
 
     print(f"\nETCC vs TC:")
     print(f"  Correlation difference: {(etcc_metrics['r'] - tc_metrics['r']):.4f}")
-    print(f"  RMSE difference: {(etcc_metrics['rmse'] - tc_metrics['rmse']):.4f}")
+    print(f"  RMSE difference: {(etcc_metrics['RMSE'] - tc_metrics['RMSE']):.4f}")
     print(f"  {'ETCC has better correlation' if etcc_metrics['r'] > tc_metrics['r'] else 'TC has better correlation'}")
-    print(f"  {'ETCC has lower RMSE' if etcc_metrics['rmse'] < tc_metrics['rmse'] else 'TC has lower RMSE'}")
+    print(f"  {'ETCC has lower RMSE' if etcc_metrics['RMSE'] < tc_metrics['RMSE'] else 'TC has lower RMSE'}")
 
     return {
         'tc': {'merged': merged_tc, 'metrics': tc_metrics, 'weights': tc.weights},
@@ -204,7 +208,7 @@ def create_visualizations(results):
     ax2.plot([0, max_val], [0, max_val], 'k--', linewidth=1, alpha=0.5)
     ax2.set_xlabel('Truth (mm)')
     ax2.set_ylabel('TC Merged (mm)')
-    ax2.set_title(f'TC: R={results["tc"]["metrics"]["r"]:.3f}, RMSE={results["tc"]["metrics"]["rmse"]:.2f}')
+    ax2.set_title(f'TC: R={results["tc"]["metrics"]["r"]:.3f}, RMSE={results["tc"]["metrics"]["RMSE"]:.2f}')
     ax2.grid(True, alpha=0.3)
 
     # 3. Scatter: ETCC vs Truth
@@ -213,7 +217,7 @@ def create_visualizations(results):
     ax3.plot([0, max_val], [0, max_val], 'k--', linewidth=1, alpha=0.5)
     ax3.set_xlabel('Truth (mm)')
     ax3.set_ylabel('ETCC Merged (mm)')
-    ax3.set_title(f'ETCC: R={results["etcc"]["metrics"]["r"]:.3f}, RMSE={results["etcc"]["metrics"]["rmse"]:.2f}')
+    ax3.set_title(f'ETCC: R={results["etcc"]["metrics"]["r"]:.3f}, RMSE={results["etcc"]["metrics"]["RMSE"]:.2f}')
     ax3.grid(True, alpha=0.3)
 
     # 4-6. Individual products
@@ -224,7 +228,7 @@ def create_visualizations(results):
         ax.plot([0, max_val], [0, max_val], 'k--', linewidth=1, alpha=0.5)
         ax.set_xlabel('Truth (mm)')
         ax.set_ylabel(f'Product {i} (mm)')
-        ax.set_title(f'Product {i}: R={metrics["r"]:.3f}, RMSE={metrics["rmse"]:.2f}')
+        ax.set_title(f'Product {i}: R={metrics["r"]:.3f}, RMSE={metrics["RMSE"]:.2f}')
         ax.grid(True, alpha=0.3)
 
     # 7. Weights comparison
@@ -246,7 +250,7 @@ def create_visualizations(results):
 
     # 8. Performance metrics comparison
     ax8 = plt.subplot(3, 3, 8)
-    metrics_names = ['r', 'kge', 'nse']
+    metrics_names = ['r', 'KGE', 'NSE']
     tc_vals = [results['tc']['metrics'][m] for m in metrics_names]
     etcc_vals = [results['etcc']['metrics'][m] for m in metrics_names]
 

@@ -7,9 +7,15 @@ This example:
 3. Evaluates and compares results
 4. Visualizes the comparison
 """
+import sys
+import os
+
+# Add parent directory for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import matplotlib.pyplot as plt
+from collocation import ETCC, TripleCollocation
 from etcc import (TripleCollocation, ETCC, calculate_metrics, 
                   compare_products, print_comparison_table,
                   generate_synthetic_data, plot_comparison,
