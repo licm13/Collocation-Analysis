@@ -33,8 +33,19 @@ from .tc import tc
 from .eivd import eivd
 from .ec import ec
 from .utils import mse_judge, kge_objfun
-from .covariance import build_sigma_from_collocation
-from .fuse import estimate_bias_from_collocation
+XR_AVAILABLE = True
+
+try:
+    from .covariance import build_sigma_from_collocation
+except ModuleNotFoundError:
+    build_sigma_from_collocation = None
+    XR_AVAILABLE = False
+
+try:
+    from .fuse import estimate_bias_from_collocation
+except ModuleNotFoundError:
+    estimate_bias_from_collocation = None
+    XR_AVAILABLE = False
 
 # Alias tc as tch (classic Three-Cornered Hat is mathematically TC)
 from .tc import tc as tch
@@ -50,8 +61,15 @@ from .simple_average import (
     ensemble_statistics
 )
 
-# ELI (Ecosystem Limitation Index) module
-from .eli import ELIProcessor, calculate_eli_index, process_eli_data
+# ELI (Ecosystem Limitation Index) module (optional xarray dependency)
+try:
+    from .eli import ELIProcessor, calculate_eli_index, process_eli_data
+    ELI_AVAILABLE = True
+except ModuleNotFoundError:
+    ELIProcessor = None
+    calculate_eli_index = None
+    process_eli_data = None
+    ELI_AVAILABLE = False
 
 # Bayesian methods (optional, requires PyMC3)
 try:
@@ -101,10 +119,12 @@ __all__ = [
     'ELIProcessor',
     'calculate_eli_index',
     'process_eli_data',
+    'ELI_AVAILABLE',
     # Utilities
     'mse_judge',
     'kge_objfun',
     'build_sigma_from_collocation',
+    'XR_AVAILABLE',
     'estimate_bias_from_collocation',
     # Bayesian methods
     'BayesianTC',
