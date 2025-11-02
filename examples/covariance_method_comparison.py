@@ -19,6 +19,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
 import sys
 import os
 

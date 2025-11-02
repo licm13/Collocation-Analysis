@@ -19,6 +19,19 @@ import pytest
 import xarray as xr
 import importlib.util
 
+# 添加绘图支持
+try:
+    import matplotlib
+    matplotlib.use("Agg")  # 非交互式后端
+    import matplotlib.pyplot as plt
+    
+    # 设置中文字体支持
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
+
 # Import fusion modules
 from collocation.fusion import (
     solve_weights_ivw,
@@ -40,6 +53,95 @@ from collocation.fusion import (
 )
 
 
+def save_fusion_test_figure(fig, test_name, script_name="test_fusion"):
+    """保存融合测试图片到figures文件夹"""
+    if not HAS_MATPLOTLIB:
+        return
+    
+    # 创建figures目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    fig_dir = os.path.join(script_dir, "figures")
+    os.makedirs(fig_dir, exist_ok=True)
+    
+    # 保存图片
+    filename = f"{script_name}_{test_name}.png"
+    filepath = os.path.join(fig_dir, filename)
+    fig.savefig(filepath, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Fusion test figure saved: {filepath}")
+
+
+def plot_fusion_weights(weights, method_name, test_name):
+    """绘制融合权重结果"""
+    if not HAS_MATPLOTLIB:
+        return
+    
+    fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+    fig.suptitle(f'{method_name} 权重测试结果 - {test_name}', fontsize=14, fontweight='bold')
+    
+    # 1. 权重条形图
+    ax1 = axes[0, 0]
+    if weights.ndim == 1:
+        n_models = len(weights)
+        x = np.arange(n_models)
+        ax1.bar(x, weights, alpha=0.7, color='steelblue')
+        ax1.set_title('融合权重')
+        ax1.set_xlabel('模型')
+        ax1.set_ylabel('权重')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels([f'M{i+1}' for i in range(n_models)])
+        ax1.grid(True, alpha=0.3, axis='y')
+        
+        # 添加权重数值标签
+        for i, w in enumerate(weights):
+            ax1.text(i, w + 0.01, f'{w:.3f}', ha='center', va='bottom')
+    
+    # 2. 权重分布
+    ax2 = axes[0, 1]
+    if weights.ndim == 1:
+        ax2.pie(weights, labels=[f'M{i+1}' for i in range(len(weights))], 
+                autopct='%1.1f%%', startangle=90)
+        ax2.set_title('权重分布')
+    
+    # 3. 权重统计
+    ax3 = axes[1, 0]
+    if weights.ndim == 1:
+        stats = {
+            '和': np.sum(weights),
+            '最大值': np.max(weights),
+            '最小值': np.min(weights),
+            '均值': np.mean(weights),
+            '标准差': np.std(weights),
+            '熵': weight_entropy(weights) if 'weight_entropy' in globals() else np.nan
+        }
+        y_pos = 0.9
+        for key, value in stats.items():
+            if np.isfinite(value):
+                ax3.text(0.1, y_pos, f'{key}: {value:.4f}', transform=ax3.transAxes, fontsize=10)
+            else:
+                ax3.text(0.1, y_pos, f'{key}: N/A', transform=ax3.transAxes, fontsize=10)
+            y_pos -= 0.12
+    
+    ax3.set_xlim(0, 1)
+    ax3.set_ylim(0, 1)
+    ax3.axis('off')
+    ax3.set_title('权重统计')
+    
+    # 4. 方法信息
+    ax4 = axes[1, 1]
+    ax4.text(0.1, 0.9, f'方法: {method_name}', transform=ax4.transAxes, fontsize=12, fontweight='bold')
+    ax4.text(0.1, 0.8, f'测试: {test_name}', transform=ax4.transAxes, fontsize=10)
+    ax4.text(0.1, 0.6, f'模型数量: {len(weights) if weights.ndim == 1 else "N/A"}', 
+             transform=ax4.transAxes, fontsize=10)
+    
+    ax4.set_xlim(0, 1)
+    ax4.set_ylim(0, 1)
+    ax4.axis('off')
+    
+    plt.tight_layout()
+    save_fusion_test_figure(fig, test_name)
+
+
 class TestWeightSolvers:
     """Test weight computation algorithms."""
 
@@ -54,6 +156,10 @@ class TestWeightSolvers:
         assert np.all(weights >= 0)
         # Lower MSE should have higher weight
         assert weights[1] > weights[0] > weights[2]
+        
+        # 创建可视化
+        if HAS_MATPLOTLIB:
+            plot_fusion_weights(weights, 'IVW', 'simple_test')
 
     def test_ivw_uniform_mse(self):
         """Test IVW with uniform MSE gives uniform weights."""

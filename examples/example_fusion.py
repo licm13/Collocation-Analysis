@@ -24,6 +24,10 @@ import xarray as xr
 import matplotlib.pyplot as plt
 # Path already imported above
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 # Import fusion modules
 from collocation.fusion import (
     fuse_fields,

@@ -44,6 +44,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from collocation import tc

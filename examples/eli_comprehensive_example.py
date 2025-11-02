@@ -30,6 +30,10 @@ from matplotlib import rcParams
 from pathlib import Path
 import warnings
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 # Import collocation methods
 from collocation import (
     ELIProcessor,

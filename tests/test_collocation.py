@@ -10,11 +10,117 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pytest
+
+# 添加绘图支持
+try:
+    import matplotlib
+    matplotlib.use("Agg")  # 非交互式后端
+    import matplotlib.pyplot as plt
+    
+    # 设置中文字体支持
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
+
 from collocation import ivd, ivs, tc, eivd, ec
 from collocation.utils import (
     mse_judge, kge_objfun, nse, pbias, rmse, mae,
     calculate_all_metrics
 )
+
+
+def save_test_figure(fig, test_name, script_name="test_collocation"):
+    """保存测试图片到figures文件夹"""
+    if not HAS_MATPLOTLIB:
+        return
+    
+    # 创建figures目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    fig_dir = os.path.join(script_dir, "figures")
+    os.makedirs(fig_dir, exist_ok=True)
+    
+    # 保存图片
+    filename = f"{script_name}_{test_name}.png"
+    filepath = os.path.join(fig_dir, filename)
+    fig.savefig(filepath, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Test figure saved: {filepath}")
+
+
+def plot_collocation_results(data, results, method_name, test_name):
+    """绘制collocation方法结果"""
+    if not HAS_MATPLOTLIB:
+        return
+    
+    fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+    fig.suptitle(f'{method_name} Test Results - {test_name}', fontsize=14, fontweight='bold')
+    
+    # 1. 时间序列图
+    ax1 = axes[0, 0]
+    if 'true_signal' in data:
+        ax1.plot(data['true_signal'][:100], 'k-', label='True Signal', linewidth=2)
+    if 'products' in data:
+        colors = ['b-', 'r-', 'g-', 'm-']
+        for i, product in enumerate(data['products'][:4]):  # 最多显示4个产品
+            ax1.plot(product[:100], colors[i], alpha=0.7, label=f'Product {i+1}')
+    ax1.set_title('时间序列对比 (前100个样本)')
+    ax1.set_xlabel('时间')
+    ax1.set_ylabel('值')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # 2. 误差方差图
+    ax2 = axes[0, 1]
+    if 'error_variances' in results:
+        n_products = len(results['error_variances'])
+        x = np.arange(n_products)
+        ax2.bar(x, results['error_variances'], alpha=0.7, color='steelblue')
+        ax2.set_title('估计的误差方差')
+        ax2.set_xlabel('产品')
+        ax2.set_ylabel('误差方差')
+        ax2.set_xticks(x)
+        ax2.set_xticklabels([f'P{i+1}' for i in range(n_products)])
+        ax2.grid(True, alpha=0.3, axis='y')
+    
+    # 3. 相关系数图
+    ax3 = axes[1, 0]
+    if 'correlations' in results:
+        correlations = results['correlations']
+        if correlations.ndim == 1:
+            ax3.bar(range(len(correlations)), correlations, alpha=0.7, color='orange')
+            ax3.set_title('相关系数')
+            ax3.set_xlabel('产品对')
+            ax3.set_ylabel('相关系数')
+            ax3.set_xticks(range(len(correlations)))
+        elif correlations.ndim == 2:
+            im = ax3.imshow(correlations, cmap='RdBu_r', vmin=-1, vmax=1)
+            ax3.set_title('相关系数矩阵')
+            plt.colorbar(im, ax=ax3, fraction=0.046, pad=0.04)
+    
+    # 4. 统计信息
+    ax4 = axes[1, 1]
+    ax4.text(0.1, 0.9, f'方法: {method_name}', transform=ax4.transAxes, fontsize=12, fontweight='bold')
+    ax4.text(0.1, 0.8, f'测试: {test_name}', transform=ax4.transAxes, fontsize=10)
+    
+    if 'summary' in results:
+        y_pos = 0.7
+        for key, value in results['summary'].items():
+            if isinstance(value, (int, float)):
+                ax4.text(0.1, y_pos, f'{key}: {value:.4f}', transform=ax4.transAxes, fontsize=9)
+            else:
+                ax4.text(0.1, y_pos, f'{key}: {value}', transform=ax4.transAxes, fontsize=9)
+            y_pos -= 0.1
+            if y_pos < 0.1:
+                break
+    
+    ax4.set_xlim(0, 1)
+    ax4.set_ylim(0, 1)
+    ax4.axis('off')
+    
+    plt.tight_layout()
+    save_test_figure(fig, test_name)
 
 
 class TestIVD:
@@ -42,6 +148,26 @@ class TestIVD:
 
         # Check error variances are reasonable
         assert np.all(np.diag(EeeT) >= 0)  # Allow zero, may be negative in edge cases
+        
+        # 创建可视化
+        if HAS_MATPLOTLIB:
+            data = {
+                'true_signal': true_signal,
+                'products': [X, Y]
+            }
+            results = {
+                'error_variances': np.diag(EeeT),
+                'correlations': rho2,
+                'summary': {
+                    'Error_Var_X': np.diag(EeeT)[0],
+                    'Error_Var_Y': np.diag(EeeT)[1],
+                    'Correlation_X': rho2[0],
+                    'Correlation_Y': rho2[1],
+                    'Scaling_X': u[0],
+                    'Scaling_Y': u[1]
+                }
+            }
+            plot_collocation_results(data, results, 'IVD', 'basic_test')
 
     def test_ivd_insufficient_data(self):
         """Test IVD with insufficient data."""
@@ -157,6 +283,29 @@ class TestTC:
         assert np.all((fMSE >= 0) & (fMSE <= 1))
 
         # Check relationship: fMSE = 1 - rho2
+        assert np.allclose(fMSE, 1 - rho2, atol=1e-10)
+        
+        # 创建可视化
+        if HAS_MATPLOTLIB:
+            data = {
+                'true_signal': true_signal,
+                'products': [X1, X2, X3]
+            }
+            results = {
+                'error_variances': np.diag(EeeT),
+                'correlations': rho2,
+                'summary': {
+                    'Error_Var_1': np.diag(EeeT)[0],
+                    'Error_Var_2': np.diag(EeeT)[1],
+                    'Error_Var_3': np.diag(EeeT)[2],
+                    'SNR_1': SNR[0],
+                    'SNR_2': SNR[1],
+                    'SNR_3': SNR[2],
+                    'Mean_Correlation': np.mean(rho2),
+                    'Mean_fMSE': np.mean(fMSE)
+                }
+            }
+            plot_collocation_results(data, results, 'TC', 'basic_test')
         assert np.allclose(fMSE, 1 - rho2)
 
     def test_tc_insufficient_data(self):
@@ -253,6 +402,30 @@ class TestEC:
         # Check first error matrix
         EeeT = result.EeeT[0]
         assert EeeT.shape == (4, 4)
+        
+        # 创建可视化
+        if HAS_MATPLOTLIB:
+            data = {
+                'true_signal': true_signal,
+                'products': [X1, X2, X3, X4]
+            }
+            # 使用第一个参考场景的结果
+            error_variances = np.diag(EeeT)
+            results_dict = {
+                'error_variances': error_variances,
+                'correlations': result.rho2[0],  # 第一个参考场景
+                'summary': {
+                    'Error_Var_1': error_variances[0],
+                    'Error_Var_2': error_variances[1],
+                    'Error_Var_3': error_variances[2],
+                    'Error_Var_4': error_variances[3],
+                    'SNR_mean': np.mean(result.SNR[0]),
+                    'Correlation_mean': np.mean(result.rho2[0]),
+                    'fMSE_mean': np.mean(result.fMSE[0]),
+                    'Scenarios': len(results)
+                }
+            }
+            plot_collocation_results(data, results_dict, 'EC', 'basic_test')
         assert np.all(np.diag(EeeT) > 0)
 
         # Check weights sum to 1

@@ -18,6 +18,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import numpy as np
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 print("Testing comprehensive comparison script...")
 print("="*60)
 

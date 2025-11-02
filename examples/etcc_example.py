@@ -25,6 +25,10 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams  # <-- 导入 rcParams
 from datetime import datetime
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 # Set random seed for reproducibility
 np.random.seed(42)
 

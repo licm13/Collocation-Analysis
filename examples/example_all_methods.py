@@ -14,6 +14,10 @@ import matplotlib.pyplot as plt
 from collocation import ivd, ivs, tc, eivd, ec
 from collocation.utils import calculate_all_metrics
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 # Set random seed for reproducibility
 np.random.seed(42)
 

@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import os
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
 # -----------------------------------------------------------------
 # 0. 模拟数据 (基于 Vogel & Ménard 2023, Sect. 5)
 # -----------------------------------------------------------------
