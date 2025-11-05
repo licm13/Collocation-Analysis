@@ -278,6 +278,8 @@ class ETCC:
         Uses increment of 0.01 (default) to test all weight combinations
         where wx + wy + wz = 1 and wx, wy, wz ∈ [0, 1].
         
+        Optimized version using vectorized operations to reduce loop overhead.
+        
         Args:
             x, y, z: Input products
             rho_truth: Correlations with truth
@@ -286,13 +288,22 @@ class ETCC:
         Returns:
             Tuple of (optimal weights dict, maximum correlation)
         """
-        max_corr = -np.inf
-        best_weights = None
-        
-        # Generate all possible weight combinations
         step = self.weight_increment
         weights_range = np.arange(0, 1 + step, step)
         
+        # Pre-compute constants for correlation calculation
+        sqrt_Cxx = np.sqrt(variances['Cxx'])
+        sqrt_Cyy = np.sqrt(variances['Cyy'])
+        sqrt_Czz = np.sqrt(variances['Czz'])
+        
+        rho_Rx = rho_truth['rho_Rx']
+        rho_Ry = rho_truth['rho_Ry']
+        rho_Rz = rho_truth['rho_Rz']
+        
+        max_corr = -np.inf
+        best_weights = None
+        
+        # Generate valid weight combinations more efficiently
         for wx in weights_range:
             for wy in weights_range:
                 wz = 1 - wx - wy
@@ -304,9 +315,20 @@ class ETCC:
                 # Ensure weights sum to 1
                 wz = max(0, min(1, wz))
                 
-                # Calculate correlation for this weight combination
-                corr = self.correlation_function(wx, wy, wz, x, y, z, 
-                                                rho_truth, variances)
+                # Vectorized merged product calculation
+                M = wx * x + wy * y + wz * z
+                C_MM = np.var(M)
+                
+                if C_MM == 0:
+                    continue
+                
+                # Vectorized numerator calculation
+                numerator = (wx * rho_Rx * sqrt_Cxx +
+                           wy * rho_Ry * sqrt_Cyy +
+                           wz * rho_Rz * sqrt_Czz)
+                
+                # Correlation
+                corr = numerator / np.sqrt(C_MM)
                 
                 # Update if better
                 if corr > max_corr:

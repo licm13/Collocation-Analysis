@@ -185,6 +185,9 @@ def ec(qu: np.ndarray) -> List[ECResult]:
         # Calculate unscaled covariance matrix
         ExxT_unres = np.cov(cal_qu, rowvar=False)
 
+        # Pre-compute means for all products to avoid redundant calculations
+        cal_qu_means = np.nanmean(cal_qu, axis=0)
+
         # Initialize rescaled data storage
         # Shape: (n_valid, 4, 4) for 4 reference scenarios (only use first 3)
         res_qu = np.zeros((cal_qu.shape[0], 4, 4))
@@ -195,48 +198,60 @@ def ec(qu: np.ndarray) -> List[ECResult]:
                 # Reference: first product (index 0)
                 res_qu[:, 0, i] = cal_qu[:, 0]
                 res_qu[:, 1, i] = _rescale_product(
-                    cal_qu[:, 1], cal_qu[:, 0], ExxT_unres, 0, 1, 2
+                    cal_qu[:, 1], cal_qu[:, 0], ExxT_unres, 0, 1, 2,
+                    source_mean=cal_qu_means[1], target_mean=cal_qu_means[0]
                 )
                 res_qu[:, 2, i] = _rescale_product(
-                    cal_qu[:, 2], cal_qu[:, 0], ExxT_unres, 0, 2, 1
+                    cal_qu[:, 2], cal_qu[:, 0], ExxT_unres, 0, 2, 1,
+                    source_mean=cal_qu_means[2], target_mean=cal_qu_means[0]
                 )
                 res_qu[:, 3, i] = _rescale_product(
-                    cal_qu[:, 3], cal_qu[:, 0], ExxT_unres, 0, 3, 1
+                    cal_qu[:, 3], cal_qu[:, 0], ExxT_unres, 0, 3, 1,
+                    source_mean=cal_qu_means[3], target_mean=cal_qu_means[0]
                 )
             elif i == 1:
                 # Reference: second product (index 1)
                 res_qu[:, 0, i] = _rescale_product(
-                    cal_qu[:, 0], cal_qu[:, 1], ExxT_unres, 1, 0, 2
+                    cal_qu[:, 0], cal_qu[:, 1], ExxT_unres, 1, 0, 2,
+                    source_mean=cal_qu_means[0], target_mean=cal_qu_means[1]
                 )
                 res_qu[:, 1, i] = cal_qu[:, 1]
                 res_qu[:, 2, i] = _rescale_product(
-                    cal_qu[:, 2], cal_qu[:, 1], ExxT_unres, 1, 2, 0
+                    cal_qu[:, 2], cal_qu[:, 1], ExxT_unres, 1, 2, 0,
+                    source_mean=cal_qu_means[2], target_mean=cal_qu_means[1]
                 )
                 res_qu[:, 3, i] = _rescale_product(
-                    cal_qu[:, 3], cal_qu[:, 1], ExxT_unres, 1, 3, 0
+                    cal_qu[:, 3], cal_qu[:, 1], ExxT_unres, 1, 3, 0,
+                    source_mean=cal_qu_means[3], target_mean=cal_qu_means[1]
                 )
             elif i == 2:
                 # Reference: third product (index 2)
                 res_qu[:, 0, i] = _rescale_product(
-                    cal_qu[:, 0], cal_qu[:, 2], ExxT_unres, 2, 0, 1
+                    cal_qu[:, 0], cal_qu[:, 2], ExxT_unres, 2, 0, 1,
+                    source_mean=cal_qu_means[0], target_mean=cal_qu_means[2]
                 )
                 res_qu[:, 1, i] = _rescale_product(
-                    cal_qu[:, 1], cal_qu[:, 2], ExxT_unres, 2, 1, 0
+                    cal_qu[:, 1], cal_qu[:, 2], ExxT_unres, 2, 1, 0,
+                    source_mean=cal_qu_means[1], target_mean=cal_qu_means[2]
                 )
                 res_qu[:, 2, i] = cal_qu[:, 2]
                 res_qu[:, 3, i] = _rescale_product(
-                    cal_qu[:, 3], cal_qu[:, 2], ExxT_unres, 2, 3, 0
+                    cal_qu[:, 3], cal_qu[:, 2], ExxT_unres, 2, 3, 0,
+                    source_mean=cal_qu_means[3], target_mean=cal_qu_means[2]
                 )
             else:  # i == 3
                 # Reference: fourth product (index 3)
                 res_qu[:, 0, i] = _rescale_product(
-                    cal_qu[:, 0], cal_qu[:, 3], ExxT_unres, 3, 0, 1
+                    cal_qu[:, 0], cal_qu[:, 3], ExxT_unres, 3, 0, 1,
+                    source_mean=cal_qu_means[0], target_mean=cal_qu_means[3]
                 )
                 res_qu[:, 1, i] = _rescale_product(
-                    cal_qu[:, 1], cal_qu[:, 3], ExxT_unres, 3, 1, 0
+                    cal_qu[:, 1], cal_qu[:, 3], ExxT_unres, 3, 1, 0,
+                    source_mean=cal_qu_means[1], target_mean=cal_qu_means[3]
                 )
                 res_qu[:, 2, i] = _rescale_product(
-                    cal_qu[:, 3], cal_qu[:, 3], ExxT_unres, 3, 2, 0
+                    cal_qu[:, 3], cal_qu[:, 3], ExxT_unres, 3, 2, 0,
+                    source_mean=cal_qu_means[3], target_mean=cal_qu_means[3]
                 )
                 res_qu[:, 3, i] = cal_qu[:, 3]
 
@@ -305,7 +320,9 @@ def _rescale_product(source: np.ndarray,
                     cov: np.ndarray,
                     ref_idx: int,
                     src_idx: int,
-                    helper_idx: int) -> np.ndarray:
+                    helper_idx: int,
+                    source_mean: Optional[float] = None,
+                    target_mean: Optional[float] = None) -> np.ndarray:
     """
     Rescale a product to match the reference using covariance information.
 
@@ -323,6 +340,10 @@ def _rescale_product(source: np.ndarray,
         Index of source product in covariance matrix
     helper_idx : int
         Index of helper product for scaling calculation
+    source_mean : float, optional
+        Pre-computed mean of source (avoids redundant calculation)
+    target_mean : float, optional
+        Pre-computed mean of target (avoids redundant calculation)
 
     Returns
     -------
@@ -330,7 +351,14 @@ def _rescale_product(source: np.ndarray,
         Rescaled product
     """
     scaling = cov[ref_idx, helper_idx] / cov[src_idx, helper_idx]
-    rescaled = scaling * (source - np.nanmean(source)) + np.nanmean(target)
+    
+    # Use pre-computed means if available to avoid redundant np.nanmean calls
+    if source_mean is None:
+        source_mean = np.nanmean(source)
+    if target_mean is None:
+        target_mean = np.nanmean(target)
+    
+    rescaled = scaling * (source - source_mean) + target_mean
     return rescaled
 
 
