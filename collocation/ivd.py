@@ -99,11 +99,14 @@ def ivd(dual: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     # Find optimal temporal offset
     # Optimization: Limit search to reasonable offset range (max 20% of data length)
     # and add early termination if correlation doesn't improve
-    max_offset = min(len(X), max(4, len(X) // 5))
+    MIN_OFFSET_SAMPLES = 4  # Minimum samples needed for meaningful correlation
+    MAX_OFFSET_FRACTION = 5  # Search up to 1/5 (20%) of data length
+    EARLY_TERMINATION_THRESHOLD = 5  # Stop if no improvement in N consecutive iterations
+    
+    max_offset = min(len(X), max(MIN_OFFSET_SAMPLES, len(X) // MAX_OFFSET_FRACTION))
     sum_R = 0
     offset = 0
     no_improvement_count = 0
-    max_no_improvement = 5  # Stop if no improvement in 5 consecutive iterations
 
     for i in range(1, max_offset):
         # Create lagged series
@@ -113,7 +116,7 @@ def ivd(dual: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         tri_Y = Y[:-i]
 
         # Skip if series too short for meaningful correlation
-        if len(tri_I) < 4:
+        if len(tri_I) < MIN_OFFSET_SAMPLES:
             break
 
         # Calculate sum of correlation coefficients safely. When the
@@ -145,7 +148,7 @@ def ivd(dual: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         else:
             no_improvement_count += 1
             # Early termination if no improvement for several iterations
-            if no_improvement_count >= max_no_improvement:
+            if no_improvement_count >= EARLY_TERMINATION_THRESHOLD:
                 break
 
     # Generate Lag-offset series

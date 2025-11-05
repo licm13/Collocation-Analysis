@@ -225,11 +225,13 @@ class TestOptimizationCorrectness:
         etcc = ETCC(weight_increment=0.1)
         merged = etcc.merge(x, y, z)
         
-        # Check weights sum to 1
+        # Check weights sum to 1 (use 0.01 tolerance for coarse increment)
+        # Note: Coarser increment=0.1 can have small numerical errors
         total_weight = (etcc.weights['wx'] + 
                        etcc.weights['wy'] + 
                        etcc.weights['wz'])
-        assert abs(total_weight - 1.0) < 0.01
+        assert abs(total_weight - 1.0) < 0.01, \
+            f"Weights sum to {total_weight}, expected close to 1.0"
         
         # Check merged result is reasonable
         assert np.all(np.isfinite(merged))

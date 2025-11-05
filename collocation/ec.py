@@ -250,8 +250,8 @@ def ec(qu: np.ndarray) -> List[ECResult]:
                     source_mean=cal_qu_means[1], target_mean=cal_qu_means[3]
                 )
                 res_qu[:, 2, i] = _rescale_product(
-                    cal_qu[:, 3], cal_qu[:, 3], ExxT_unres, 3, 2, 0,
-                    source_mean=cal_qu_means[3], target_mean=cal_qu_means[3]
+                    cal_qu[:, 2], cal_qu[:, 3], ExxT_unres, 3, 2, 0,
+                    source_mean=cal_qu_means[2], target_mean=cal_qu_means[3]
                 )
                 res_qu[:, 3, i] = cal_qu[:, 3]
 
