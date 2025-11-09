@@ -1,0 +1,125 @@
+# HCC-ET Framework Configuration Template
+# ==========================================
+# Customize this file for your specific dataset and research needs
+
+# Data Paths
+# ----------
+data:
+  # Parent T/ET ratio products (coarse resolution)
+  parent_dir: /data/parent_products
+  parent_products:
+    - GLEAM
+    - PMLv2
+    - GLDAS
+
+  # 1km predictors for downscaling
+  predictors_dir: /data/predictors_1km
+  predictor_vars:
+    - LST      # Land Surface Temperature
+    - NDVI     # Normalized Difference Vegetation Index
+    - Albedo   # Surface Albedo
+    - Precip   # Precipitation
+
+  # Physical constraints
+  sapflux_dir: /data/sapfluxnet
+  wb_et_dir: /data/water_balance
+
+  # Total ET product (for computing final T and E)
+  total_et_dir: /data/total_et
+  total_et_product: CAMELE  # or 'GLEAM', 'PMLv2', etc.
+
+  # Auxiliary data
+  landcover_dir: /data/landcover
+  basin_mask_file: /data/masks/basin_mask_1km.nc
+  pft_map_file: /data/pft/pft_map_1km.nc
+
+# Time Periods
+# ------------
+time:
+  calibration_period:
+    - '1981-01-01'
+    - '2025-12-31'
+
+  hindcast_period:
+    - '1950-01-01'
+    - '1980-12-31'
+
+# Downscaling Configuration
+# --------------------------
+downscaling:
+  model_type: random_forest  # 'random_forest', 'gradient_boosting', 'ridge'
+
+  # Random Forest hyperparameters
+  hyperparams:
+    n_estimators: 100
+    max_depth: 20
+    min_samples_split: 10
+    min_samples_leaf: 5
+    max_features: sqrt
+    n_jobs: -1
+    random_state: 42
+
+  cv_folds: 5  # Cross-validation folds
+  n_features: 4  # Number of predictor variables
+  evaluate: true  # Evaluate downscaling performance
+
+# Fusion Configuration
+# --------------------
+fusion:
+  # Fusion mode: 'auto', 'eivd', 'ec', 'gls'
+  # - 'auto': Auto-select based on number of models (3=EIVD, 4=EC, else=GLS)
+  # - 'eivd': Extended IVD for 3 products (handles ECC)
+  # - 'ec': Extended Collocation for 4 products (handles ECC)
+  # - 'gls': Generalized Least Squares (general, uses TC for covariance)
+  mode: auto
+
+  # Covariance shrinkage method
+  shrinkage: lw  # 'lw' (Ledoit-Wolf), 'oas', 'ridge', 'none'
+
+  # Robust estimation (Huber loss)
+  robust: false
+
+  # Spatially varying weights (slower but more accurate)
+  spatial_varying_weights: false
+
+  # EC criterion (if mode='ec')
+  ec_criterion: min_fMSE  # 'min_fMSE' or 'max_SNR'
+
+  # Uncertainty Quantification
+  uncertainty_quantification: true
+  bayesian_sample_size: 10000  # Subsample for computational efficiency (null=use all)
+  bayesian_niter: 2000  # MCMC iterations
+  bayesian_nadvi: 200000  # ADVI iterations for initialization
+
+# Physical Constraints Configuration
+# -----------------------------------
+constraints:
+  # Water Balance constraint (hard constraint on total ET)
+  apply_wb_constraint: true
+  wb_tolerance: 0.05  # 5% relative tolerance
+  basin_ids: null  # null = all basins, or provide list: [1, 2, 3, ...]
+
+  # SapFluxNet constraint (soft constraint on T/ET ratio)
+  apply_sapflux_constraint: true
+  sapflux_upscale_method: nearest  # 'nearest', 'bilinear', 'conservative'
+  sapflux_correction_strength: 0.5  # 0.0 = no correction, 1.0 = full correction
+
+# Analysis Configuration
+# -----------------------
+analysis:
+  # Land cover classification
+  landcover_classes:
+    - natural
+    - managed
+    - urban
+
+  # Trend analysis
+  trend_method: theil_sen  # 'theil_sen' or 'ols'
+  significance_level: 0.05  # p-value threshold
+
+# Output Configuration
+# --------------------
+output:
+  save_intermediate: true  # Save intermediate results (candidates, weights, etc.)
+  save_diagnostics: true  # Save diagnostic plots and tables
+  compression_level: 4  # NetCDF compression (0-9, higher = more compression)
