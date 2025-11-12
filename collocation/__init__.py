@@ -22,6 +22,7 @@ Simple Methods:
 Bayesian Methods:
 - BTC: Bayesian Triple Collocation (3-way, time-varying errors, full uncertainty)
 - BTCH: Bayesian Three-Cornered Hat (3-way, constant errors, full uncertainty)
+- BTCH_He2020: BTCH method by He et al. (2020) (3-way, analytical weights, no MCMC)
 
 Data Fusion Module (NEW):
 - fusion: Comprehensive data fusion framework with IVW, GLS/BLUE, constrained QP
@@ -100,6 +101,9 @@ except ImportError:
     BAYESIAN_TCH_AVAILABLE = False
     BayesianTCH = None
 
+# BTCH He et al. 2020 (no PyMC3 required, analytical method)
+from .btch_he2020 import BTCH_He2020, btch_he2020
+
 
 __version__ = '1.4.0' # Incremented version for ETCC integration
 
@@ -138,4 +142,6 @@ __all__ = [
     'BAYESIAN_AVAILABLE',
     'BayesianTCH', # Added BTCH
     'BAYESIAN_TCH_AVAILABLE', # Added BTCH flag
+    'BTCH_He2020', # BTCH He et al. 2020
+    'btch_he2020', # Convenience function
 ]

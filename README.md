@@ -61,6 +61,14 @@ This layered structure keeps numerical kernels small and testable while allowing
   - Ideal when time-varying errors not expected
   - Requires PyMC3 (optional dependency)
 
+- **BTCH_He2020** (He et al. 2020): Fast analytical BTCH method
+  - Uses Three-Cornered Hat (TCH) for error variance point estimates
+  - Applies analytical Bayesian weight formula (no MCMC)
+  - Supports both uncorrelated and correlated error estimation
+  - Fast, deterministic, minimal dependencies (NumPy only)
+  - No uncertainty quantification (point estimates only)
+  - Ideal when speed is critical and uncertainty not required
+
 #### Application: Ecosystem Limitation Index (ELI)
 
 - **NEW**: Complete Python implementation of ELI calculation framework
@@ -258,6 +266,63 @@ else:
     print("Install PyMC3 for Bayesian methods: pip install pymc3==3.11.5 theano-pymc")
 ```
 
+#### BTCH He et al. 2020 (Fast Analytical Method)
+
+```python
+from collocation import BTCH_He2020, btch_he2020
+
+# Option 1: Convenience function (similar to tc, ivd, etc.)
+# Three products (n_samples, 3)
+data = np.column_stack([product1, product2, product3])
+
+# Basic usage (uncorrelated TCH)
+error_variances, weights, fused = btch_he2020(data)
+print("Error variances:", error_variances)
+print("Weights:", weights)
+
+# With correlated TCH
+error_variances, weights, fused = btch_he2020(
+    data,
+    method='correlated',
+    alpha=1e-2,  # Regularization parameter
+    iters=500    # Optimization iterations
+)
+
+# Get full results
+results = btch_he2020(data, return_full=True)
+print("RMSE:", results['rmse'])
+print("Error covariance:", results['error_covariance'])
+
+# Option 2: Class-based API (more control)
+btch = BTCH_He2020(data)
+
+# Estimate variances
+btch.estimate_variances(method='uncorrelated')
+
+# Compute weights
+btch.compute_weights()
+
+# Fuse products
+fused = btch.fuse()
+
+# Print summary
+btch.summary()
+
+# Or run all steps at once
+results = btch.run(method='correlated', alpha=1e-2, iters=500)
+```
+
+**Key Advantages:**
+- Very fast (no MCMC, pure analytical)
+- Minimal dependencies (NumPy only, no PyMC3)
+- Deterministic results (no sampling variability)
+- Can handle correlated errors (regularized TCH)
+- Simple API consistent with other methods
+
+**Limitations:**
+- No uncertainty quantification (point estimates only)
+- For full Bayesian inference, use BayesianTCH or BayesianTC instead
+
 ## Method Comparison
 
 | Method | # Products | Error Correlation | Temporal Info | Uncertainty | Optimization | Best For |
@@ -270,6 +335,7 @@ else:
 | **EC** | 4 | Yes (estimated) | No | No | Analytical | Multi-sensor fusion |
 | **BTC** | 3+ | Yes (estimated) | Time-varying | Full Bayesian | MCMC | Complex error structures, time-varying |
 | **BTCH** | 3 | Zero (assumed) | No | Full Bayesian | MCMC | Constant errors with uncertainty quantification |
+| **BTCH (He 2020)** | 3 | Yes (approx.) | No | No (point est.) | Analytical (TCH + weights) | Fast fusion without MCMC, correlated errors |
 
 ## Comprehensive Examples
 
