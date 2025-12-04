@@ -71,6 +71,11 @@ from .uncertainty import (
 )
 from .localization import localize_weights
 
+# Numerical constants for weight computation
+_MIN_VARIANCE = 1e-10  # Minimum variance to avoid division by zero
+_DIAGONAL_LOADING = 1e-8  # Small loading for matrix regularization
+_SUM_TOLERANCE = 1e-15  # Tolerance for detecting zero weight sums
+
 
 def fuse_fields(
     X: xr.DataArray,
@@ -363,7 +368,7 @@ def _compute_ivw_weights_vectorized(Sigma: np.ndarray) -> np.ndarray:
 
     # Inverse variance weights: w = 1/σ²
     # Protect against zero or negative variances
-    variances_safe = np.maximum(variances, 1e-10)
+    variances_safe = np.maximum(variances, _MIN_VARIANCE)
     inv_var = 1.0 / variances_safe
 
     # Normalize: w = inv_var / sum(inv_var)
@@ -408,7 +413,7 @@ def _compute_gls_weights_vectorized(Sigma: np.ndarray) -> np.ndarray:
     # Compute trace for each matrix to scale loading appropriately
     trace_vals = np.trace(Sigma_sym, axis1=-2, axis2=-1)  # shape (...)
     # Expand trace to match Sigma shape for broadcasting
-    loading = 1e-8 * (trace_vals / K)[..., np.newaxis, np.newaxis]
+    loading = _DIAGONAL_LOADING * (trace_vals / K)[..., np.newaxis, np.newaxis]
     eye_K = np.eye(K)
     Sigma_reg = Sigma_sym + loading * eye_K
 
@@ -428,7 +433,7 @@ def _compute_gls_weights_vectorized(Sigma: np.ndarray) -> np.ndarray:
         # Normalize: w = w_unnorm / sum(w_unnorm)
         w_sum = w_unnorm.sum(axis=-1, keepdims=True)
         # Handle edge case where sum is zero
-        w_sum = np.where(np.abs(w_sum) < 1e-15, 1.0, w_sum)
+        w_sum = np.where(np.abs(w_sum) < _SUM_TOLERANCE, 1.0, w_sum)
         weights = w_unnorm / w_sum
 
     except np.linalg.LinAlgError:
