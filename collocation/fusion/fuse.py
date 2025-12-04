@@ -257,6 +257,13 @@ def _compute_global_weights(
     Compute global (non-localized) fusion weights.
 
     Handles scalar or spatially varying Sigma.
+
+    Performance Notes
+    -----------------
+    This function is vectorized for IVW and GLS modes to avoid Python loops.
+    - IVW: Uses pure NumPy array operations (w = 1/σ² / sum(1/σ²))
+    - GLS: Uses numpy.linalg.solve with broadcasting for batch processing
+    - QP: Falls back to per-pixel loop (requires quadprog solver)
     """
     n_models = len(X.coords["model"])
 
@@ -295,21 +302,24 @@ def _compute_global_weights(
 
         # Extract numpy arrays
         Sigma_np = Sigma.values  # (..., K, K)
-        weights_np = np.zeros((*batch_shape, n_models))
 
-        # Solve per pixel
-        for idx in np.ndindex(batch_shape):
-            S = Sigma_np[idx]
+        if mode == "ivw":
+            # Vectorized IVW: w = (1/σ²) / Σ(1/σ²)
+            weights_np = _compute_ivw_weights_vectorized(Sigma_np)
 
-            if mode == "ivw":
-                mse = np.diag(S)
-                weights_np[idx] = solve_weights_ivw(mse, sum_to_one=True)
+        elif mode == "gls":
+            # Vectorized GLS: w = Σ^{-1}1 / (1^T Σ^{-1}1)
+            weights_np = _compute_gls_weights_vectorized(Sigma_np)
 
-            elif mode == "gls":
-                weights_np[idx] = solve_weights_gls(S, sum_to_one=True)
-
-            elif mode == "qp":
+        elif mode == "qp":
+            # QP requires per-pixel loop (quadprog doesn't support batching)
+            weights_np = np.zeros((*batch_shape, n_models))
+            for idx in np.ndindex(batch_shape):
+                S = Sigma_np[idx]
                 weights_np[idx] = _solve_qp_with_constraints(S, n_models, constraints)
+
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
 
         # Wrap in xarray
         all_dims = (*batch_dims, "model")
@@ -321,6 +331,115 @@ def _compute_global_weights(
             dims=all_dims,
             coords=coords,
         )
+
+    return weights
+
+
+def _compute_ivw_weights_vectorized(Sigma: np.ndarray) -> np.ndarray:
+    """
+    Compute inverse variance weights in a fully vectorized manner.
+
+    IVW formula: w_k = (1/σ_k²) / Σ_j(1/σ_j²)
+
+    Parameters
+    ----------
+    Sigma : np.ndarray
+        Covariance matrices with shape (..., K, K).
+        Only diagonal elements (variances) are used.
+
+    Returns
+    -------
+    np.ndarray
+        Weights with shape (..., K), sum to 1 along last axis.
+    """
+    # Extract diagonal elements (variances): shape (..., K)
+    # Using einsum for efficient diagonal extraction over batch dimensions
+    K = Sigma.shape[-1]
+    batch_shape = Sigma.shape[:-2]
+
+    # Get diagonals: Sigma[..., i, i] for all i
+    diag_idx = np.arange(K)
+    variances = Sigma[..., diag_idx, diag_idx]  # shape (..., K)
+
+    # Inverse variance weights: w = 1/σ²
+    # Protect against zero or negative variances
+    variances_safe = np.maximum(variances, 1e-10)
+    inv_var = 1.0 / variances_safe
+
+    # Normalize: w = inv_var / sum(inv_var)
+    inv_var_sum = inv_var.sum(axis=-1, keepdims=True)
+    # Handle edge case where all variances are very large (sum → 0)
+    inv_var_sum = np.where(inv_var_sum == 0, 1.0, inv_var_sum)
+
+    weights = inv_var / inv_var_sum
+
+    return weights
+
+
+def _compute_gls_weights_vectorized(Sigma: np.ndarray) -> np.ndarray:
+    """
+    Compute GLS/BLUE weights in a vectorized manner using numpy.linalg.solve.
+
+    GLS formula: w = Σ^{-1}1 / (1^T Σ^{-1}1)
+
+    Parameters
+    ----------
+    Sigma : np.ndarray
+        Covariance matrices with shape (..., K, K).
+        Must be positive definite.
+
+    Returns
+    -------
+    np.ndarray
+        Weights with shape (..., K), sum to 1 along last axis.
+
+    Notes
+    -----
+    Uses numpy.linalg.solve which supports broadcasting over batch dimensions.
+    Adds small diagonal loading if matrices are singular.
+    """
+    K = Sigma.shape[-1]
+    batch_shape = Sigma.shape[:-2]
+
+    # Symmetrize Sigma for numerical stability
+    Sigma_sym = 0.5 * (Sigma + np.swapaxes(Sigma, -1, -2))
+
+    # Add small diagonal loading to ensure positive definiteness
+    # Compute trace for each matrix to scale loading appropriately
+    trace_vals = np.trace(Sigma_sym, axis1=-2, axis2=-1)  # shape (...)
+    # Expand trace to match Sigma shape for broadcasting
+    loading = 1e-8 * (trace_vals / K)[..., np.newaxis, np.newaxis]
+    eye_K = np.eye(K)
+    Sigma_reg = Sigma_sym + loading * eye_K
+
+    # Solve Sigma @ x = ones for x (which gives Sigma^{-1} @ ones)
+    # numpy.linalg.solve requires b to have shape (..., K, M) for batch solving
+    # We reshape ones to (..., K, 1) and squeeze after
+    try:
+        # Create ones vector with shape (..., K, 1) for solve
+        ones_broadcast = np.ones((*batch_shape, K, 1))
+
+        # Solve: Sigma_reg @ w_unnorm = ones
+        w_unnorm = np.linalg.solve(Sigma_reg, ones_broadcast)
+
+        # Squeeze last dimension: (..., K, 1) -> (..., K)
+        w_unnorm = w_unnorm.squeeze(axis=-1)
+
+        # Normalize: w = w_unnorm / sum(w_unnorm)
+        w_sum = w_unnorm.sum(axis=-1, keepdims=True)
+        # Handle edge case where sum is zero
+        w_sum = np.where(np.abs(w_sum) < 1e-15, 1.0, w_sum)
+        weights = w_unnorm / w_sum
+
+    except np.linalg.LinAlgError:
+        # Fallback: if solve fails, use IVW as backup
+        weights = _compute_ivw_weights_vectorized(Sigma)
+
+    # Handle any NaN/Inf by falling back to uniform weights
+    invalid_mask = ~np.all(np.isfinite(weights), axis=-1, keepdims=True)
+    if np.any(invalid_mask):
+        uniform = np.full(K, 1.0 / K)
+        weights = np.where(invalid_mask, uniform, weights)
 
     return weights
 

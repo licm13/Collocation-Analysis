@@ -139,3 +139,7 @@ Thumbs.db
 *.pdf
 data/
 results/
+
+# Generated NetCDF files from examples
+examples/spatial_results.nc
+*.nc
