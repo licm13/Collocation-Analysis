@@ -534,5 +534,92 @@ class TestMissingData:
         assert np.sum(~np.isnan(result["fused"])) > 0
 
 
+class TestVectorizedWeights:
+    """Test vectorized weight computation performance and correctness."""
+
+    def test_vectorized_ivw_matches_loop(self):
+        """Test that vectorized IVW produces same results as loop version."""
+        np.random.seed(42)
+        n_lat, n_lon, n_models = 20, 20, 3
+
+        # Create spatially varying covariance matrices
+        variances = np.abs(np.random.randn(n_lat, n_lon, n_models)) + 0.1
+        Sigma = np.zeros((n_lat, n_lon, n_models, n_models))
+        for i in range(n_lat):
+            for j in range(n_lon):
+                Sigma[i, j] = np.diag(variances[i, j])
+
+        # Import the vectorized function
+        from collocation.fusion.fuse import _compute_ivw_weights_vectorized
+
+        # Compute with vectorized version
+        weights_vectorized = _compute_ivw_weights_vectorized(Sigma)
+
+        # Compute with loop version
+        weights_loop = np.zeros((n_lat, n_lon, n_models))
+        for i in range(n_lat):
+            for j in range(n_lon):
+                mse = np.diag(Sigma[i, j])
+                inv_var = 1.0 / mse
+                weights_loop[i, j] = inv_var / inv_var.sum()
+
+        # Should match
+        assert np.allclose(weights_vectorized, weights_loop, rtol=1e-10)
+
+    def test_vectorized_gls_matches_loop(self):
+        """Test that vectorized GLS produces same results as loop version."""
+        np.random.seed(42)
+        n_lat, n_lon, n_models = 10, 10, 3
+
+        # Create random positive definite covariance matrices
+        Sigma = np.zeros((n_lat, n_lon, n_models, n_models))
+        for i in range(n_lat):
+            for j in range(n_lon):
+                A = np.random.randn(n_models, n_models)
+                Sigma[i, j] = A @ A.T + 0.1 * np.eye(n_models)
+
+        # Import the vectorized function
+        from collocation.fusion.fuse import _compute_gls_weights_vectorized
+
+        # Compute with vectorized version
+        weights_vectorized = _compute_gls_weights_vectorized(Sigma)
+
+        # Compute with loop version using the existing solver
+        from collocation.fusion.weights import solve_weights_gls
+        weights_loop = np.zeros((n_lat, n_lon, n_models))
+        for i in range(n_lat):
+            for j in range(n_lon):
+                weights_loop[i, j] = solve_weights_gls(Sigma[i, j], sum_to_one=True)
+
+        # Should match (with some tolerance for numerical differences)
+        assert np.allclose(weights_vectorized, weights_loop, rtol=1e-5, atol=1e-6)
+
+    def test_vectorized_weights_sum_to_one(self):
+        """Test that vectorized weights sum to 1."""
+        np.random.seed(42)
+        n_lat, n_lon, n_models = 15, 15, 4
+
+        # Create random positive definite covariance matrices
+        Sigma = np.zeros((n_lat, n_lon, n_models, n_models))
+        for i in range(n_lat):
+            for j in range(n_lon):
+                A = np.random.randn(n_models, n_models)
+                Sigma[i, j] = A @ A.T + 0.1 * np.eye(n_models)
+
+        # Import vectorized functions
+        from collocation.fusion.fuse import (
+            _compute_ivw_weights_vectorized,
+            _compute_gls_weights_vectorized
+        )
+
+        # IVW weights should sum to 1
+        weights_ivw = _compute_ivw_weights_vectorized(Sigma)
+        assert np.allclose(weights_ivw.sum(axis=-1), 1.0, rtol=1e-10)
+
+        # GLS weights should sum to 1
+        weights_gls = _compute_gls_weights_vectorized(Sigma)
+        assert np.allclose(weights_gls.sum(axis=-1), 1.0, rtol=1e-6)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
