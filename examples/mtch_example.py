@@ -30,13 +30,35 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 
 from collocation import mtch, MTCH, tc
 
-# Font configuration (support Chinese environments)
-plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
+# Font configuration: choose installed fonts and ensure minus glyph support.
+def _configure_plot_fonts() -> None:
+    preferred_fonts = [
+        "DejaVu Sans",
+        "Arial",
+        "Noto Sans CJK SC",
+        "Microsoft YaHei",
+        "SimHei",
+    ]
+    installed = {f.name for f in font_manager.fontManager.ttflist}
+    selected = [name for name in preferred_fonts if name in installed]
+
+    if not selected:
+        selected = ["DejaVu Sans"]
+
+    existing = [name for name in mpl.rcParams.get("font.sans-serif", []) if name not in selected]
+    mpl.rcParams["font.family"] = "sans-serif"
+    mpl.rcParams["font.sans-serif"] = selected + existing
+    mpl.rcParams["axes.unicode_minus"] = False
+    mpl.rcParams["mathtext.fontset"] = "dejavusans"
+
+
+_configure_plot_fonts()
 
 
 # ============================================================================
