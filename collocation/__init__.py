@@ -109,9 +109,45 @@ from .btch_he2020 import BTCH_He2020, btch_he2020
 from .mtch import mtch, MTCH
 
 
-__version__ = '1.5.0'  # Incremented version for MTCH integration
+# ── sklearn-style estimator API ──────────────────────────────────────────────
+from .base import CollocationEstimator
+from .estimators import TC as TCEstimator, EIVD as EIVDEstimator
+from .estimators import IVD as IVDEstimator, EC as ECEstimator
+
+# ── Smart method recommender ─────────────────────────────────────────────────
+from .consultant import CollocationConsultant, ConsultationReport
+
+# ── Interactive & static plotting ────────────────────────────────────────────
+from .plotting import (
+    InteractiveDashboard,
+    plot_error_comparison,
+    plot_stability_heatmap,
+    PLOTLY_AVAILABLE,
+)
+
+# ── ELI one-click pipeline ───────────────────────────────────────────────────
+from .eli_pipeline import ELIPipeline, ELIResult
+
+__version__ = '2.0.0'  # Major upgrade: sklearn API, consultant, dashboard, ELI pipeline
 
 __all__ = [
+    # sklearn-style estimators
+    'CollocationEstimator',
+    'TCEstimator',
+    'EIVDEstimator',
+    'IVDEstimator',
+    'ECEstimator',
+    # Smart recommender
+    'CollocationConsultant',
+    'ConsultationReport',
+    # Plotting
+    'InteractiveDashboard',
+    'plot_error_comparison',
+    'plot_stability_heatmap',
+    'PLOTLY_AVAILABLE',
+    # ELI pipeline
+    'ELIPipeline',
+    'ELIResult',
     # Classical methods
     'ivd',
     'ivs',
