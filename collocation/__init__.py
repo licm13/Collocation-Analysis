@@ -15,6 +15,7 @@ Classical Methods:
 - EIVD: Extended Information Vector Dual (3-way, allows error cross-correlation)
 - EC: Extended Collocation (4-way quadruple collocation)
 - ETCC: Extended Triple Collocation for maximized Correlation (3-way, optimizes correlation)
+- MTCH: Multiplicative-error Three-Cornered Hat (N-way, multiplicative error model)
 
 Simple Methods:
 - SimpleAverage: Simple and weighted averaging for quick data fusion
@@ -104,8 +105,11 @@ except ImportError:
 # BTCH He et al. 2020 (no PyMC3 required, analytical method)
 from .btch_he2020 import BTCH_He2020, btch_he2020
 
+# MTCH – Multiplicative-error Three-Cornered Hat (Xu et al. 2019 / Ferreira et al. 2016)
+from .mtch import mtch, MTCH
 
-__version__ = '1.4.0' # Incremented version for ETCC integration
+
+__version__ = '1.5.0'  # Incremented version for MTCH integration
 
 __all__ = [
     # Classical methods
@@ -144,4 +148,7 @@ __all__ = [
     'BAYESIAN_TCH_AVAILABLE', # Added BTCH flag
     'BTCH_He2020', # BTCH He et al. 2020
     'btch_he2020', # Convenience function
+    # MTCH – multiplicative-error TCH
+    'mtch',
+    'MTCH',
 ]
